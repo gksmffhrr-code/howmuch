@@ -1124,6 +1124,194 @@
     }
 
 
+
+    /* v13: A4 미리보기 및 잘림 방지 */
+    @media screen {
+      #quotePanel {
+        overflow-x: auto;
+      }
+
+      #quoteSheet {
+        width: 210mm;
+        min-height: 297mm;
+        margin: 0 auto;
+        padding: 8mm;
+        box-sizing: border-box;
+        border-radius: 0;
+        box-shadow: 0 14px 36px rgba(15, 23, 42, 0.16);
+      }
+
+      .quote-block {
+        overflow: visible !important;
+      }
+
+      .top-summary-table,
+      .detail-table,
+      .finance-detail-table {
+        min-width: 0 !important;
+        width: 100% !important;
+      }
+
+      .sheet-table {
+        width: 100%;
+        table-layout: fixed;
+        font-size: 10.5px;
+        line-height: 1.28;
+      }
+
+      .sheet-table th,
+      .sheet-table td {
+        padding: 4px 5px;
+      }
+
+      .sheet-top-meta {
+        font-size: 11px;
+        line-height: 1.45;
+        margin-bottom: 8px;
+      }
+
+      .sheet-recipient-area {
+        font-size: 11px;
+        line-height: 1.45;
+        margin: 6px 0 8px;
+      }
+
+      .recipient-line {
+        min-height: 54px;
+        font-size: 12px;
+      }
+
+      .company-info-block {
+        gap: 10px;
+      }
+
+      .company-info-lines {
+        gap: 0;
+      }
+
+      .meta-key {
+        min-width: 92px;
+      }
+
+      .sheet-top-right {
+        min-width: 220px;
+      }
+
+      .sheet-top-right .meta-line,
+      .sheet-top-right .meta-line.right {
+        grid-template-columns: 90px 1fr;
+      }
+
+      .amount-strip {
+        grid-template-columns: 150px 1fr 150px;
+        padding: 5px 0;
+        margin-bottom: 10px;
+        font-size: 12px;
+      }
+
+      .amount-number {
+        font-size: 14px;
+      }
+
+      .sheet-section-title {
+        margin: 10px 0 5px;
+        font-size: 12px;
+      }
+
+      .quote-footer-note {
+        margin-top: 10px;
+        padding: 8px;
+        font-size: 11px;
+        line-height: 1.45;
+      }
+
+      .ceo-stamp-img {
+        width: 42px;
+        height: 42px;
+      }
+    }
+
+    @media print {
+      #quoteSheet {
+        width: 100% !important;
+        min-height: auto !important;
+        box-shadow: none !important;
+        box-sizing: border-box;
+      }
+
+      .top-summary-table,
+      .detail-table,
+      .finance-detail-table {
+        min-width: 0 !important;
+        width: 100% !important;
+      }
+
+      .quote-block {
+        overflow: visible !important;
+      }
+    }
+
+
+
+    /* v14: 작성 견적서 수기 단가 조정 */
+    .manual-price-input {
+      width: 100%;
+      min-width: 78px;
+      padding: 3px 4px;
+      border: 1px solid #2563eb;
+      border-radius: 4px;
+      background: #eff6ff;
+      color: #111827;
+      font-size: inherit;
+      font-weight: 800;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .manual-adjusted-row td {
+      background: #fff7ed;
+    }
+
+    .manual-adjusted-row td:nth-child(6)::after {
+      content: " 수기";
+      display: inline-block;
+      margin-left: 3px;
+      color: #c2410c;
+      font-size: 9px;
+      font-weight: 900;
+    }
+
+    #clearManualPricesBtn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    @media print {
+      .manual-price-input {
+        border: 0 !important;
+        background: transparent !important;
+        padding: 0 !important;
+        color: #111827 !important;
+        text-align: right !important;
+        appearance: textfield;
+      }
+
+      .manual-price-input::-webkit-outer-spin-button,
+      .manual-price-input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+
+      .manual-adjusted-row td {
+        background: #fff !important;
+      }
+
+      .manual-adjusted-row td:nth-child(6)::after {
+        content: "";
+      }
+    }
+
+
     @page {
       size: A4;
       margin: 10mm;
@@ -1177,7 +1365,7 @@
   <header>
     <h1>thynC 견적 산출 웹</h1>
     <div id="loginStatus" class="user-chip hidden">
-      <span>작성자: <strong id="currentUserLabel"></strong></span>
+      <span>담당자: <strong id="currentUserLabel"></strong></span>
       <button type="button" class="secondary small" id="logoutBtn">로그아웃</button>
     </div>
   </header>
@@ -1185,7 +1373,7 @@
   <main class="wrap">
     <section id="loginView" class="panel login-panel">
       <h2>로그인</h2>
-      <p class="muted">작성자 아이디로 로그인하면 견적서 작성자 정보가 자동 입력됩니다.</p>
+      <p class="muted">담당자 아이디로 로그인하면 견적서 담당자 정보가 자동 입력됩니다.</p>
       <form id="loginForm">
         <div class="grid">
           <div class="full">
@@ -1210,6 +1398,13 @@
         <tbody>
           <tr><td>이현주</td><td><code>lhj</code></td><td><code>0000</code></td></tr>
           <tr><td>이범준</td><td><code>lbj</code></td><td><code>0000</code></td></tr>
+          <tr><td>고명성</td><td><code>gms</code></td><td><code>0000</code></td></tr>
+          <tr><td>정상명</td><td><code>jsm</code></td><td><code>0000</code></td></tr>
+          <tr><td>윤나은</td><td><code>yne</code></td><td><code>0000</code></td></tr>
+          <tr><td>하지수</td><td><code>hjs</code></td><td><code>0000</code></td></tr>
+          <tr><td>오창헌</td><td><code>och</code></td><td><code>0000</code></td></tr>
+          <tr><td>백정현</td><td><code>bjh</code></td><td><code>0000</code></td></tr>
+          <tr><td>도영석</td><td><code>dys</code></td><td><code>0000</code></td></tr>
         </tbody>
       </table>
 
@@ -1229,31 +1424,31 @@
             S/W 단가 구간은 별도 선택 없이 실제 디바이스 수 기준으로 자동 적용됩니다.
           </div>
 
-          <div class="section-title">작성자 / 도입처</div>
+          <div class="section-title">담당자 / 도입처</div>
           <div class="grid">
             <div>
-              <label for="writerName">작성자</label>
+              <label for="writerName">담당자</label>
               <input id="writerName" readonly />
             </div>
             <div>
-              <label for="writerId">작성자 ID</label>
+              <label for="writerId">담당자 ID</label>
               <input id="writerId" readonly />
             </div>
             <div class="full">
               <label for="hospitalName">도입처</label>
-              <input id="hospitalName" value="노원을지대병원" />
+              <input id="hospitalName" placeholder="예: 노원을지대병원" />
             </div>
             <div>
               <label for="wardCount">병동수</label>
-              <input id="wardCount" type="number" min="1" value="5" />
+              <input id="wardCount" type="number" min="1" placeholder="입력" />
             </div>
-            <input id="installedBeds" type="hidden" value="0" />
+            <input id="installedBeds" type="hidden" value="" />
             <div>
               <label for="actualDevices">실제 디바이스 수</label>
-              <input id="actualDevices" type="number" min="0" value="35" />
+              <input id="actualDevices" type="number" min="0" placeholder="입력" />
               <div class="usage-sync-note">
-                S/W 수량은 이 값과 자동 연동됩니다.<br />
-                <span id="autoPackageBasisNote">S/W 단가 구간도 실제 디바이스 수 기준으로 자동 적용됩니다.</span>
+                S/W 수량과 Service Console 서버 타입은 이 값과 자동 연동됩니다.<br />
+                <span id="autoPackageBasisNote">S/W 단가 구간은 실제 디바이스 수 입력 후 자동 적용됩니다.</span>
               </div>
             </div>
           </div>
@@ -1262,51 +1457,52 @@
           <div class="grid">
             <div>
               <label for="gatewayQty">Gateway 수량</label>
-              <input id="gatewayQty" type="number" min="0" value="18" />
+              <input id="gatewayQty" type="number" min="0" placeholder="입력" />
             </div>
             <div>
               <label for="centralCount">Central Monitoring 수량</label>
-              <input id="centralCount" type="number" min="0" value="5" />
+              <input id="centralCount" type="number" min="0" placeholder="입력" />
             </div>
             <div>
               <label for="nurseCount">Nurse Managing 수량</label>
-              <input id="nurseCount" type="number" min="0" value="5" />
+              <input id="nurseCount" type="number" min="0" placeholder="입력" />
             </div>
             <div>
               <label for="mobileCount">Mobile Managing 수량</label>
-              <input id="mobileCount" type="number" min="0" value="0" />
+              <input id="mobileCount" type="number" min="0" placeholder="입력" />
             </div>
             <div>
               <label for="monitorType">Central Monitor</label>
               <select id="monitorType">
+                <option value="">선택</option>
                 <option value="32">32 Inch</option>
-                <option value="50" selected>50 Inch</option>
+                <option value="50">50 Inch</option>
                 <option value="60">60 Inch</option>
               </select>
             </div>
             <div>
               <label for="monitorQty">Central Monitor 수량</label>
-              <input id="monitorQty" type="number" min="0" value="5" />
+              <input id="monitorQty" type="number" min="0" placeholder="입력" />
             </div>
             <div>
               <label for="poe8">8 Port POE</label>
-              <input id="poe8" type="number" min="0" value="3" />
+              <input id="poe8" type="number" min="0" placeholder="입력" />
             </div>
             <div>
               <label for="poe16">16 Port POE</label>
-              <input id="poe16" type="number" min="0" value="0" />
+              <input id="poe16" type="number" min="0" placeholder="입력" />
             </div>
             <div>
               <label for="poe24">24 Port POE</label>
-              <input id="poe24" type="number" min="0" value="3" />
+              <input id="poe24" type="number" min="0" placeholder="입력" />
             </div>
             <div>
               <label for="poe48">48 Port POE</label>
-              <input id="poe48" type="number" min="0" value="0" />
+              <input id="poe48" type="number" min="0" placeholder="입력" />
             </div>
             <div class="full hidden">
               <label for="usageSwQty">사용량비례형 S/W 기준 수량</label>
-              <input id="usageSwQty" type="number" min="0" value="35" readonly />
+              <input id="usageSwQty" type="number" min="0" value="" readonly />
             </div>
           </div>
 
@@ -1323,7 +1519,7 @@
             <label class="check"><input type="checkbox" id="nurseStationEnabled" checked /> 간호사 스테이션</label>
             <label class="check"><input type="checkbox" id="dashboardEnabled" checked /> Central Monitoring</label>
             <label class="check"><input type="checkbox" id="managerEnabled" checked /> Nurse Managing</label>
-            <label class="check"><input type="checkbox" id="mobileEnabled" /> Mobile Managing</label>
+            <label class="check"><input type="checkbox" id="mobileEnabled" checked /> Mobile Managing</label>
             <label class="check"><input type="checkbox" id="constructionEnabled" checked /> 공사비 사용</label>
             <label class="check"><input type="checkbox" id="networkCostEnabled" checked /> Network Cost</label>
             <label class="check"><input type="checkbox" id="otherCostEnabled" checked /> Other Cost</label>
@@ -1333,7 +1529,7 @@
           <div class="server-console-box" style="margin-top: 12px;">
             <div class="section-title">Service Console 서버 타입</div>
             <p class="small-text" style="margin: 0 0 8px;">
-              서버 타입을 체크한 뒤 수량을 입력하면 Service Console 단가와 금액에 반영됩니다.
+              실제 디바이스 수 입력 시 서버 타입이 자동 체크됩니다. 필요 시 체크/해제와 수량 조정이 가능합니다.
             </p>
             <div class="server-console-grid">
               <div class="server-console-head">사용</div>
@@ -1344,32 +1540,32 @@
               <label class="server-console-check"><input type="checkbox" id="serviceConsole100Enabled" /> 사용</label>
               <div class="server-console-type">100</div>
               <div class="server-console-price">₩134,142,800</div>
-              <input id="serviceConsole100Qty" class="server-console-qty" type="number" min="0" value="0" />
+              <input id="serviceConsole100Qty" class="server-console-qty" type="number" min="0" placeholder="입력" />
 
               <label class="server-console-check"><input type="checkbox" id="serviceConsole50Enabled" /> 사용</label>
               <div class="server-console-type">50</div>
               <div class="server-console-price">₩64,966,000</div>
-              <input id="serviceConsole50Qty" class="server-console-qty" type="number" min="0" value="0" />
+              <input id="serviceConsole50Qty" class="server-console-qty" type="number" min="0" placeholder="입력" />
 
-              <label class="server-console-check"><input type="checkbox" id="serviceConsole40Enabled" checked /> 사용</label>
+              <label class="server-console-check"><input type="checkbox" id="serviceConsole40Enabled" /> 사용</label>
               <div class="server-console-type">40</div>
               <div class="server-console-price">₩58,238,400</div>
-              <input id="serviceConsole40Qty" class="server-console-qty" type="number" min="0" value="1" />
+              <input id="serviceConsole40Qty" class="server-console-qty" type="number" min="0" placeholder="입력" />
 
               <label class="server-console-check"><input type="checkbox" id="serviceConsole30Enabled" /> 사용</label>
               <div class="server-console-type">30</div>
               <div class="server-console-price">₩54,594,100</div>
-              <input id="serviceConsole30Qty" class="server-console-qty" type="number" min="0" value="0" />
+              <input id="serviceConsole30Qty" class="server-console-qty" type="number" min="0" placeholder="입력" />
 
               <label class="server-console-check"><input type="checkbox" id="serviceConsole20Enabled" /> 사용</label>
               <div class="server-console-type">20</div>
               <div class="server-console-price">₩45,030,700</div>
-              <input id="serviceConsole20Qty" class="server-console-qty" type="number" min="0" value="0" />
+              <input id="serviceConsole20Qty" class="server-console-qty" type="number" min="0" placeholder="입력" />
 
               <label class="server-console-check"><input type="checkbox" id="serviceConsole10Enabled" /> 사용</label>
               <div class="server-console-type">10</div>
               <div class="server-console-price">₩36,978,700</div>
-              <input id="serviceConsole10Qty" class="server-console-qty" type="number" min="0" value="0" />
+              <input id="serviceConsole10Qty" class="server-console-qty" type="number" min="0" placeholder="입력" />
             </div>
           </div>
           <input id="memo" type="hidden" value="" />
@@ -1421,6 +1617,11 @@
               </select>
             </div>
             <div class="right">
+              <label class="toggle-inline" title="활성화하면 견적서 표의 단가를 수기로 조정할 수 있습니다.">
+                <input type="checkbox" id="manualPriceEnabledToggle" />
+                수기 단가 조정
+              </label>
+              <button type="button" class="small ghost" id="clearManualPricesBtn" disabled>수기값 초기화</button>
               <label class="toggle-inline" title="체크하면 최종 견적서에 생략된 세부 산출내역을 표시합니다.">
                 <input type="checkbox" id="showHiddenDetails" />
                 생략 세부내역 표시
@@ -1512,7 +1713,14 @@
   <script>
     const USERS = {
       lhj: { id: "lhj", name: "이현주", password: "0000" },
-      lbj: { id: "lbj", name: "이범준", password: "0000" }
+      lbj: { id: "lbj", name: "이범준", password: "0000" },
+      gms: { id: "gms", name: "고명성", password: "0000" },
+      jsm: { id: "jsm", name: "정상명", password: "0000" },
+      yne: { id: "yne", name: "윤나은", password: "0000" },
+      hjs: { id: "hjs", name: "하지수", password: "0000" },
+      och: { id: "och", name: "오창헌", password: "0000" },
+      bjh: { id: "bjh", name: "백정현", password: "0000" },
+      dys: { id: "dys", name: "도영석", password: "0000" }
     };
 
     const SESSION_KEY = "thync.session.user.v1";
@@ -1589,22 +1797,22 @@
     };
 
     const DEFAULT_INPUTS = {
-      hospitalName: "노원을지대병원",
-      packageBasis: 40,
-      wardCount: 5,
-      installedBeds: 35,
-      actualDevices: 35,
-      gatewayQty: 18,
-      centralCount: 5,
-      nurseCount: 5,
-      mobileCount: 0,
-      monitorType: "50",
-      monitorQty: 5,
-      poe8: 3,
-      poe16: 0,
-      poe24: 3,
-      poe48: 0,
-      usageSwQty: 35,
+      hospitalName: "",
+      packageBasis: "",
+      wardCount: "",
+      installedBeds: "",
+      actualDevices: "",
+      gatewayQty: "",
+      centralCount: "",
+      nurseCount: "",
+      mobileCount: "",
+      monitorType: "",
+      monitorQty: "",
+      poe8: "",
+      poe16: "",
+      poe24: "",
+      poe48: "",
+      usageSwQty: "",
       wearableEnabled: true,
       ecgEnabled: true,
       spo2Enabled: true,
@@ -1616,29 +1824,31 @@
       nurseStationEnabled: true,
       dashboardEnabled: true,
       managerEnabled: true,
-      mobileEnabled: false,
+      mobileEnabled: true,
       constructionEnabled: true,
       networkCostEnabled: true,
       otherCostEnabled: true,
       ackEnabled: true,
       serviceConsole100Enabled: false,
-      serviceConsole100Qty: 0,
+      serviceConsole100Qty: "",
       serviceConsole50Enabled: false,
-      serviceConsole50Qty: 0,
-      serviceConsole40Enabled: true,
-      serviceConsole40Qty: 1,
+      serviceConsole50Qty: "",
+      serviceConsole40Enabled: false,
+      serviceConsole40Qty: "",
       serviceConsole30Enabled: false,
-      serviceConsole30Qty: 0,
+      serviceConsole30Qty: "",
       serviceConsole20Enabled: false,
-      serviceConsole20Qty: 0,
+      serviceConsole20Qty: "",
       serviceConsole10Enabled: false,
-      serviceConsole10Qty: 0,
+      serviceConsole10Qty: "",
       memo: ""
     };
 
     let currentResults = null;
     let selectedType = "normal";
     let selectedGroup = "A";
+    let manualPriceEnabled = false;
+    let manualPriceOverrides = {};
 
     const $ = (id) => document.getElementById(id);
     const money = (value) => `${new Intl.NumberFormat("ko-KR").format(Math.round(value || 0))}원`;
@@ -1661,6 +1871,53 @@
       if (n <= 40) return 40;
       if (n <= 50) return 50;
       return 100;
+    }
+
+
+    function resolveServiceConsoleTypeFromDevices(deviceCount) {
+      const n = Math.max(0, Number(deviceCount || 0));
+      if (n <= 10) return 10;
+      if (n <= 20) return 20;
+      if (n <= 30) return 30;
+      if (n <= 40) return 40;
+      if (n <= 50) return 50;
+      return 100;
+    }
+
+    function applyServiceConsoleAutoSelectionFromDevices() {
+      const deviceEl = $("actualDevices");
+      if (!deviceEl) return;
+
+      const raw = String(deviceEl.value || "").trim();
+
+      // 실제 디바이스 수가 비어 있으면 자동 선택도 비웁니다.
+      if (raw === "") {
+        SERVICE_CONSOLE_TYPES.forEach((server) => {
+          const enabledEl = $(`serviceConsole${server.type}Enabled`);
+          const qtyEl = $(`serviceConsole${server.type}Qty`);
+          if (enabledEl) enabledEl.checked = false;
+          if (qtyEl) qtyEl.value = "";
+        });
+        return;
+      }
+
+      const targetType = resolveServiceConsoleTypeFromDevices(Number(raw));
+
+      SERVICE_CONSOLE_TYPES.forEach((server) => {
+        const enabledEl = $(`serviceConsole${server.type}Enabled`);
+        const qtyEl = $(`serviceConsole${server.type}Qty`);
+        if (!enabledEl || !qtyEl) return;
+
+        const isTarget = Number(server.type) === Number(targetType);
+        enabledEl.checked = isTarget;
+
+        if (isTarget) {
+          // 같은 구간에서 이미 수량을 조정한 경우는 유지하고, 비어 있으면 1로 시작합니다.
+          if (Number(qtyEl.value || 0) < 1) qtyEl.value = 1;
+        } else {
+          qtyEl.value = "";
+        }
+      });
     }
 
     function sanitizeQty(value) {
@@ -1851,7 +2108,7 @@
         rows.push(line("Construction Cost", "Network Cost", "Gateway, Server, PC", input.gatewayQty, group.construction.networkPerGateway));
       }
 
-      if (input.otherCostEnabled) {
+      if (input.otherCostEnabled && input.wardCount > 0) {
         const base = group.construction.otherBase;
         const amount = base + (0.5 * base) * Math.max(0, input.wardCount - 1);
         rows.push(line("Construction Cost", "Other Construction Cost", "기타 부자재", input.wardCount, null, amount));
@@ -1926,10 +2183,14 @@
 
     function renderAll() {
       syncDependencies();
-      if ($("usageSwQty")) $("usageSwQty").value = $("actualDevices").value || 0;
-      const autoPkg = resolvePackageBasisFromDevices(number("actualDevices"));
+      if ($("usageSwQty")) $("usageSwQty").value = $("actualDevices").value || "";
+      const hasDeviceInput = $("actualDevices") && String($("actualDevices").value || "").trim() !== "";
+      const autoPkg = hasDeviceInput ? resolvePackageBasisFromDevices(number("actualDevices")) : null;
       if ($("autoPackageBasisNote")) {
-        $("autoPackageBasisNote").textContent = `S/W 단가 구간: ${autoPkg}구간 자동 적용`;
+        const serverType = autoPkg ? resolveServiceConsoleTypeFromDevices(number("actualDevices")) : null;
+        $("autoPackageBasisNote").textContent = autoPkg
+          ? `S/W 단가 구간: ${autoPkg}구간 · Service Console 서버 ${serverType} 자동 선택`
+          : "S/W 단가 구간과 Service Console 서버 타입은 실제 디바이스 수 입력 후 자동 적용됩니다.";
       }
       currentResults = calcAll();
       renderSummary();
@@ -1938,18 +2199,272 @@
       $("lastCalculatedAt").textContent = `계산 기준: ${new Date().toLocaleString("ko-KR")}`;
     }
 
+    function quoteScopeKey(type = selectedType, groupKey = selectedGroup) {
+      return `${type}:${groupKey}`;
+    }
+
+    function quotePriceKey(section, item) {
+      return `${section}::${item}`;
+    }
+
+    function getManualScope(type = selectedType, groupKey = selectedGroup) {
+      const scopeKey = quoteScopeKey(type, groupKey);
+      if (!manualPriceOverrides[scopeKey]) manualPriceOverrides[scopeKey] = {};
+      return manualPriceOverrides[scopeKey];
+    }
+
+    function hasManualPriceOverride(section, item, type = selectedType, groupKey = selectedGroup) {
+      const scope = manualPriceOverrides[quoteScopeKey(type, groupKey)] || {};
+      return Object.prototype.hasOwnProperty.call(scope, quotePriceKey(section, item));
+    }
+
+    function getManualPriceOverride(section, item, type = selectedType, groupKey = selectedGroup) {
+      const scope = manualPriceOverrides[quoteScopeKey(type, groupKey)] || {};
+      const key = quotePriceKey(section, item);
+      return Object.prototype.hasOwnProperty.call(scope, key) ? Number(scope[key] || 0) : null;
+    }
+
+    function parseManualPrice(value) {
+      const normalized = String(value ?? "").replace(/[^0-9.]/g, "");
+      if (normalized === "") return null;
+      return Math.max(0, Math.round(Number(normalized) || 0));
+    }
+
+    function setManualPriceOverride(section, item, value) {
+      const scope = getManualScope();
+      const key = quotePriceKey(section, item);
+      const parsed = parseManualPrice(value);
+      if (parsed === null) {
+        delete scope[key];
+      } else {
+        scope[key] = parsed;
+      }
+    }
+
+    function clearManualPriceOverridesForCurrentScope() {
+      delete manualPriceOverrides[quoteScopeKey()];
+    }
+
+    function manualScopeHasOverrides(type = selectedType, groupKey = selectedGroup) {
+      const scope = manualPriceOverrides[quoteScopeKey(type, groupKey)] || {};
+      return Object.keys(scope).length > 0;
+    }
+
+    function updateManualPriceControls() {
+      if ($("manualPriceEnabledToggle")) $("manualPriceEnabledToggle").checked = manualPriceEnabled;
+      if ($("clearManualPricesBtn")) $("clearManualPricesBtn").disabled = !manualScopeHasOverrides();
+    }
+
+    function roundDiv(amount, qtyValue) {
+      const q = Number(qtyValue || 0);
+      if (!q) return 0;
+      return Math.round(Number(amount || 0) / q);
+    }
+
+    function applyManualPriceToRow(row, type, groupKey) {
+      const manualActive = manualPriceEnabled && row.manualEditable !== false;
+      const hasOverride = manualActive && hasManualPriceOverride(row.section, row.item, type, groupKey);
+      const overridePrice = hasOverride ? getManualPriceOverride(row.section, row.item, type, groupKey) : null;
+      const effectiveUnitPrice = hasOverride ? overridePrice : Number(row.defaultUnitPrice || 0);
+      const adjustedAmount = hasOverride
+        ? Math.round(Number(row.qty || 0) * Number(effectiveUnitPrice || 0))
+        : Math.round(Number(row.originalAmount || 0));
+
+      return {
+        ...row,
+        effectiveUnitPrice,
+        amount: adjustedAmount,
+        manualOverrideActive: hasOverride
+      };
+    }
+
+    function buildQuoteViewData(result, input, type, groupKey) {
+      const formatQty = (value) => new Intl.NumberFormat("ko-KR").format(Number(value || 0));
+      const findCategoryAmount = (rows, category) =>
+        Math.round(rows.filter((row) => row.category === category).reduce((acc, row) => acc + Number(row.amount || 0), 0));
+
+      const serviceRows = result.systemLines.filter((row) => row.category === "Service Console");
+      const serviceAmount = findCategoryAmount(result.systemLines, "Service Console");
+      const serviceQty = serviceRows.reduce((acc, row) => acc + Number(row.qty || 0), 0);
+      const serviceUnitPriceSum = serviceRows.reduce((acc, row) => acc + Number(row.unitPrice || 0), 0);
+      const serviceTypeSummary = serviceRows.length
+        ? serviceRows.map((row) => `${String(row.item || "").replace("Service Console ", "")} Type × ${formatQty(row.qty)}`).join(", ")
+        : "선택 서버 없음";
+
+      const gatewayAmount = findCategoryAmount(result.systemLines, "Data Aggregator");
+      const networkAmount = findCategoryAmount(result.systemLines, "Network");
+      const centralAmount = findCategoryAmount(result.systemLines, "Central Monitoring System");
+      const nurseAmount = findCategoryAmount(result.systemLines, "Nurse Managing System");
+      const mobileAmount = findCategoryAmount(result.systemLines, "Mobile Managing System");
+      const constructionAmount = findCategoryAmount(result.systemLines, "Construction Cost");
+      const networkQty = Number(input.poe8 || 0) + Number(input.poe16 || 0) + Number(input.poe24 || 0) + Number(input.poe48 || 0);
+
+      const systemRowsRaw = [
+        {
+          section: "system",
+          no: 1,
+          item: "Service Console",
+          desc: `On-Premise Server
+선택 서버 타입: ${serviceTypeSummary}
+입원환자 실시간 모니터링 소프트웨어
+- 실시간 생체신호 수집 및 전송 서버 솔루션
+- 웹 브라우저 기반 대시보드, 모니터링 관리 솔루션
+- 부정맥 및 이상징후 분석 알고리즘 솔루션`,
+          unit: "EA",
+          qty: serviceQty,
+          defaultUnitPrice: serviceUnitPriceSum || roundDiv(serviceAmount, serviceQty),
+          originalAmount: serviceAmount,
+          remark: "계약 기간 내 보증"
+        },
+        {
+          section: "system",
+          no: 2,
+          item: "Data Aggregator",
+          desc: "생체신호 수집 및 전송 장치",
+          unit: "EA",
+          qty: input.gatewayQty,
+          defaultUnitPrice: 544500,
+          originalAmount: gatewayAmount,
+          remark: "계약 기간 내 보증"
+        },
+        {
+          section: "system",
+          no: 3,
+          item: "Network",
+          desc: "POE Switch",
+          unit: "EA",
+          qty: networkQty,
+          defaultUnitPrice: roundDiv(networkAmount, networkQty),
+          originalAmount: networkAmount,
+          remark: "계약 기간 내 보증"
+        },
+        {
+          section: "system",
+          no: 4,
+          item: "Central Monitoring System",
+          desc: "병동 전체 모니터링 시스템",
+          unit: "EA",
+          qty: input.centralCount,
+          defaultUnitPrice: roundDiv(centralAmount, input.centralCount),
+          originalAmount: centralAmount,
+          remark: "계약 기간 내 보증"
+        },
+        {
+          section: "system",
+          no: 5,
+          item: "Nurse Managing System",
+          desc: "병동 모니터링 관리 시스템",
+          unit: "EA",
+          qty: input.nurseCount,
+          defaultUnitPrice: roundDiv(nurseAmount, input.nurseCount),
+          originalAmount: nurseAmount,
+          remark: "계약 기간 내 보증"
+        },
+        {
+          section: "system",
+          no: 6,
+          item: "Mobile Managing System",
+          desc: "모바일 관리 시스템",
+          unit: "EA",
+          qty: input.mobileCount,
+          defaultUnitPrice: roundDiv(mobileAmount, input.mobileCount),
+          originalAmount: mobileAmount,
+          remark: "계약 기간 내 보증"
+        },
+        {
+          section: "system",
+          no: 7,
+          item: "Construction Cost",
+          desc: "설치비 ( 네트워크 공사, 기타 부자재 )",
+          unit: "-",
+          qty: constructionAmount ? 1 : 0,
+          defaultUnitPrice: constructionAmount,
+          originalAmount: constructionAmount,
+          remark: "옵션"
+        }
+      ];
+
+      const wearableEcg = result.wearableLines.find((row) => row.item === "웨어러블 심전계");
+      const wearableSpo2 = result.wearableLines.find((row) => row.item === "웨어러블 산소포화도기");
+      const wearableSensor = result.wearableLines.find((row) => row.item === "다회용 산소포화도 센서");
+
+      const wearableRowsRaw = [
+        {
+          section: "wearable",
+          no: 1,
+          item: "웨어러블 심전계",
+          desc: "mobiCARE-MC200M-T",
+          unit: "EA",
+          qty: wearableEcg ? wearableEcg.qty : 0,
+          defaultUnitPrice: wearableEcg ? wearableEcg.unitPrice : 0,
+          originalAmount: wearableEcg ? wearableEcg.amount : 0,
+          remark: "계약 기간 내 보증"
+        },
+        {
+          section: "wearable",
+          no: 2,
+          item: "웨어러블 산소포화도기",
+          desc: "MP100W",
+          unit: "EA",
+          qty: wearableSpo2 ? wearableSpo2.qty : 0,
+          defaultUnitPrice: wearableSpo2 ? wearableSpo2.unitPrice : 0,
+          originalAmount: wearableSpo2 ? wearableSpo2.amount : 0,
+          remark: "계약 기간 내 보증"
+        },
+        {
+          section: "wearable",
+          no: 3,
+          item: "다회용 산소포화도 센서",
+          desc: "MP1000F",
+          unit: "EA",
+          qty: wearableSensor ? wearableSensor.qty : 0,
+          defaultUnitPrice: wearableSensor ? wearableSensor.unitPrice : 0,
+          originalAmount: wearableSensor ? wearableSensor.amount : 0,
+          remark: "계약 기간 내 보증"
+        }
+      ];
+
+      const systemRows = systemRowsRaw.map((row) => applyManualPriceToRow(row, type, groupKey));
+      const wearableRows = wearableRowsRaw.map((row) => applyManualPriceToRow(row, type, groupKey));
+      const systemTotal = Math.round(systemRows.reduce((acc, row) => acc + Number(row.amount || 0), 0));
+      const wearableTotal = Math.round(wearableRows.reduce((acc, row) => acc + Number(row.amount || 0), 0));
+      const baseTotal = systemTotal + wearableTotal;
+      const financeTotal = type === "usage" ? Math.round(baseTotal * Number(result.financeRate || 0)) : 0;
+      const total = baseTotal + financeTotal;
+
+      return {
+        type,
+        groupKey,
+        typeLabel: result.typeLabel,
+        groupLabel: result.groupLabel,
+        financeRate: result.financeRate,
+        systemRows,
+        wearableRows,
+        detailRows: result.systemLines.filter((row) => Number(row.amount || 0) !== 0 || Number(row.qty || 0) !== 0),
+        totals: {
+          system: systemTotal,
+          wearable: wearableTotal,
+          base: baseTotal,
+          finance: financeTotal,
+          total
+        }
+      };
+    }
+
     function renderSummary() {
       const container = $("summaryCards");
       const cards = [];
       ["normal", "usage"].forEach((type) => {
         ["A", "B", "C"].forEach((groupKey) => {
           const result = currentResults[type][groupKey];
+          const view = buildQuoteViewData(result, currentResults.input, type, groupKey);
           const active = selectedType === type && selectedGroup === groupKey ? " active" : "";
+          const manualLabel = manualPriceEnabled && manualScopeHasOverrides(type, groupKey) ? " · 수기단가" : "";
           cards.push(`
             <div class="card${active}" data-type="${type}" data-group="${groupKey}">
-              <div class="type"><span>${result.typeLabel}</span><span class="pill">${result.groupLabel}</span></div>
-              <div class="amount">${money(result.totals.total)}</div>
-              <div class="sub">시스템 ${money(result.totals.system)} · 웨어러블 ${money(result.totals.wearable)}${type === "usage" ? ` · 운용비 ${money(result.totals.finance)}` : ""}</div>
+              <div class="type"><span>${result.typeLabel}${manualLabel}</span><span class="pill">${result.groupLabel}</span></div>
+              <div class="amount">${money(view.totals.total)}</div>
+              <div class="sub">시스템 ${money(view.totals.system)} · 웨어러블 ${money(view.totals.wearable)}${type === "usage" ? ` · 운용비 ${money(view.totals.finance)}` : ""}</div>
             </div>
           `);
         });
@@ -1968,11 +2483,11 @@
     }
 
     function renderComparison() {
-      const normalA = currentResults.normal.A.totals.total;
-      const usageA = currentResults.usage.A.totals.total;
+      const normalA = buildQuoteViewData(currentResults.normal.A, currentResults.input, "normal", "A").totals.total;
+      const usageA = buildQuoteViewData(currentResults.usage.A, currentResults.input, "usage", "A").totals.total;
       const rows = ["A", "B", "C"].map((groupKey) => {
-        const n = currentResults.normal[groupKey];
-        const u = currentResults.usage[groupKey];
+        const n = buildQuoteViewData(currentResults.normal[groupKey], currentResults.input, "normal", groupKey);
+        const u = buildQuoteViewData(currentResults.usage[groupKey], currentResults.input, "usage", groupKey);
         return `
           <tr>
             <td class="center"><strong>${GROUPS[groupKey].label}</strong></td>
@@ -2016,12 +2531,14 @@
       `).join("");
     }
 
+    
     function renderQuoteDetail() {
       if (!currentResults) return;
 
       const user = getCurrentUser();
-      const result = currentResults[selectedType][selectedGroup];
+      const baseResult = currentResults[selectedType][selectedGroup];
       const input = currentResults.input;
+      const result = buildQuoteViewData(baseResult, input, selectedType, selectedGroup);
       const quoteNo = makeQuoteNumber();
       const now = new Date();
       const quoteDate = `${now.getFullYear()}년 ${now.getMonth() + 1}월 ${now.getDate()}일`;
@@ -2034,28 +2551,25 @@
       };
       const qty = (value) => new Intl.NumberFormat("ko-KR").format(Number(value || 0));
 
-      const findCategoryAmount = (rows, category) =>
-        Math.round(rows.filter((row) => row.category === category).reduce((acc, row) => acc + Number(row.amount || 0), 0));
+      const priceCell = (row) => {
+        const value = row.manualOverrideActive ? row.effectiveUnitPrice : row.defaultUnitPrice;
+        if (!manualPriceEnabled) {
+          return value ? moneyCell(value) : "";
+        }
 
-      const serviceRows = result.systemLines.filter((row) => row.category === "Service Console");
-      const serviceAmount = findCategoryAmount(result.systemLines, "Service Console");
-      const serviceQty = serviceRows.reduce((acc, row) => acc + Number(row.qty || 0), 0);
-      const serviceUnitPriceSum = serviceRows.reduce((acc, row) => acc + Number(row.unitPrice || 0), 0);
-      const serviceTypeSummary = serviceRows.length
-        ? serviceRows.map((row) => `${String(row.item || "").replace("Service Console ", "")} Type × ${qty(row.qty)}`).join(", ")
-        : "선택 서버 없음";
-      const gatewayAmount = findCategoryAmount(result.systemLines, "Data Aggregator");
-      const networkAmount = findCategoryAmount(result.systemLines, "Network");
-      const centralAmount = findCategoryAmount(result.systemLines, "Central Monitoring System");
-      const nurseAmount = findCategoryAmount(result.systemLines, "Nurse Managing System");
-      const mobileAmount = findCategoryAmount(result.systemLines, "Mobile Managing System");
-      const constructionAmount = findCategoryAmount(result.systemLines, "Construction Cost");
-
-      const wearableEcg = result.wearableLines.find((row) => row.item === "웨어러블 심전계");
-      const wearableSpo2 = result.wearableLines.find((row) => row.item === "웨어러블 산소포화도기");
-      const wearableSensor = result.wearableLines.find((row) => row.item === "다회용 산소포화도 센서");
-
-      const topBaseAmount = result.totals.base;
+        return `
+          <input
+            class="manual-price-input"
+            type="number"
+            min="0"
+            step="1000"
+            data-section="${escapeHtml(row.section)}"
+            data-item="${escapeHtml(row.item)}"
+            value="${Math.round(Number(value || 0))}"
+            aria-label="${escapeHtml(row.item)} 단가 수기 조정"
+          />
+        `;
+      };
 
       $("metaQuoteNo").textContent = quoteNo;
       $("metaQuoteDate").textContent = quoteDate;
@@ -2065,7 +2579,7 @@
       $("quoteTotalKorean").textContent = `${numberToKorean(result.totals.total)}원`;
 
       const topRows = [
-        { no: "1", item: "입원환자 실시간 모니터링 시스템 thynC-IP2140", amount: topBaseAmount, remark: "" },
+        { no: "1", item: "입원환자 실시간 모니터링 시스템 thynC-IP2140", amount: result.totals.base, remark: "" },
         { no: "1", item: "시스템", desc: "입원환자 실시간 모니터링 서버 및 관리 시스템", amount: result.totals.system, remark: "계약 기간 내 보증" },
         { no: "2", item: "웨어러블 의료기기", desc: "웨어러블 심전계, 산소포화도기, 다회용 산소포화도 센서", amount: result.totals.wearable, remark: "계약 기간 내 보증" }
       ];
@@ -2098,84 +2612,6 @@
         </tbody>
       `;
 
-      const systemRows = [
-        {
-          no: 1,
-          item: "Service Console",
-          desc: `On-Premise Server
-선택 서버 타입: ${serviceTypeSummary}
-입원환자 실시간 모니터링 소프트웨어
-- 실시간 생체신호 수집 및 전송 서버 솔루션
-- 웹 브라우저 기반 대시보드, 모니터링 관리 솔루션
-- 부정맥 및 이상징후 분석 알고리즘 솔루션`,
-          unit: "EA",
-          qty: serviceQty,
-          unitPrice: serviceUnitPriceSum ? moneyCell(serviceUnitPriceSum) : "",
-          amount: serviceAmount,
-          remark: "계약 기간 내 보증"
-        },
-        {
-          no: 2,
-          item: "Data Aggregator",
-          desc: "생체신호 수집 및 전송 장치",
-          unit: "EA",
-          qty: input.gatewayQty,
-          unitPrice: moneyCell(544500),
-          amount: gatewayAmount,
-          remark: "계약 기간 내 보증"
-        },
-        {
-          no: 3,
-          item: "Network",
-          desc: "POE Switch",
-          unit: "EA",
-          qty: Number(input.poe8 || 0) + Number(input.poe16 || 0) + Number(input.poe24 || 0) + Number(input.poe48 || 0),
-          unitPrice: "",
-          amount: networkAmount,
-          remark: "계약 기간 내 보증"
-        },
-        {
-          no: 4,
-          item: "Central Monitoring System",
-          desc: "병동 전체 모니터링 시스템",
-          unit: "EA",
-          qty: input.centralCount,
-          unitPrice: "",
-          amount: centralAmount,
-          remark: "계약 기간 내 보증"
-        },
-        {
-          no: 5,
-          item: "Nurse Managing System",
-          desc: "병동 모니터링 관리 시스템",
-          unit: "EA",
-          qty: input.nurseCount,
-          unitPrice: "",
-          amount: nurseAmount,
-          remark: "계약 기간 내 보증"
-        },
-        {
-          no: 6,
-          item: "Mobile Managing System",
-          desc: "모바일 관리 시스템",
-          unit: "EA",
-          qty: input.mobileCount,
-          unitPrice: "",
-          amount: mobileAmount,
-          remark: "계약 기간 내 보증"
-        },
-        {
-          no: 7,
-          item: "Construction Cost",
-          desc: "설치비 ( 네트워크 공사, 기타 부자재 )",
-          unit: "-",
-          qty: 1,
-          unitPrice: moneyCell(constructionAmount),
-          amount: constructionAmount,
-          remark: "옵션"
-        }
-      ];
-
       $("systemTable").innerHTML = `
         <colgroup>
           <col style="width:4%;" />
@@ -2200,14 +2636,14 @@
           </tr>
         </thead>
         <tbody>
-          ${systemRows.map((row) => `
-            <tr>
+          ${result.systemRows.map((row) => `
+            <tr class="${row.manualOverrideActive ? "manual-adjusted-row" : ""}">
               <td class="center"><strong>${row.no}</strong></td>
               <td class="center"><strong>${escapeHtml(row.item)}</strong></td>
               <td>${escapeHtml(row.desc)}</td>
               <td class="center">${escapeHtml(String(row.unit))}</td>
               <td class="center">${qty(row.qty)}</td>
-              <td class="num">${row.unitPrice || ""}</td>
+              <td class="num">${priceCell(row)}</td>
               <td class="num"><strong>${moneyCell(row.amount)}</strong></td>
               <td class="center">${escapeHtml(row.remark)}</td>
             </tr>
@@ -2220,7 +2656,6 @@
         </tbody>
       `;
 
-      const detailRows = result.systemLines.filter((row) => Number(row.amount || 0) !== 0 || Number(row.qty || 0) !== 0);
       if (showHiddenDetails) {
         $("hiddenDetailSection").classList.remove("hidden");
         $("hiddenDetailTable").innerHTML = `
@@ -2248,9 +2683,9 @@
           </thead>
           <tbody>
             <tr class="detail-muted-row">
-              <td colspan="8">아래 표는 최종 견적서에서 항목별 합계로 묶어 표시한 세부 산출내역입니다.</td>
+              <td colspan="8">아래 표는 최종 견적서에서 항목별 합계로 묶어 표시한 원 산식 기준 세부 산출내역입니다. 수기 단가 조정은 위 최종 견적서 단가/금액에 반영됩니다.</td>
             </tr>
-            ${detailRows.map((row, index) => `
+            ${result.detailRows.map((row, index) => `
               <tr>
                 <td class="center">${index + 1}</td>
                 <td>${escapeHtml(row.category || "")}</td>
@@ -2268,39 +2703,6 @@
         $("hiddenDetailSection").classList.add("hidden");
         $("hiddenDetailTable").innerHTML = "";
       }
-
-      const wearableRows = [
-        {
-          no: 1,
-          item: "웨어러블 심전계",
-          desc: "mobiCARE-MC200M-T",
-          unit: "EA",
-          qty: wearableEcg ? wearableEcg.qty : 0,
-          unitPrice: wearableEcg ? moneyCell(wearableEcg.unitPrice) : "",
-          amount: wearableEcg ? wearableEcg.amount : 0,
-          remark: "계약 기간 내 보증"
-        },
-        {
-          no: 2,
-          item: "웨어러블 산소포화도기",
-          desc: "MP100W",
-          unit: "EA",
-          qty: wearableSpo2 ? wearableSpo2.qty : 0,
-          unitPrice: wearableSpo2 ? moneyCell(wearableSpo2.unitPrice) : "",
-          amount: wearableSpo2 ? wearableSpo2.amount : 0,
-          remark: "계약 기간 내 보증"
-        },
-        {
-          no: 3,
-          item: "다회용 산소포화도 센서",
-          desc: "MP1000F",
-          unit: "EA",
-          qty: wearableSensor ? wearableSensor.qty : 0,
-          unitPrice: wearableSensor ? moneyCell(wearableSensor.unitPrice) : "",
-          amount: wearableSensor ? wearableSensor.amount : 0,
-          remark: "계약 기간 내 보증"
-        }
-      ];
 
       $("wearableTable").innerHTML = `
         <colgroup>
@@ -2326,14 +2728,14 @@
           </tr>
         </thead>
         <tbody>
-          ${wearableRows.map((row) => `
-            <tr>
+          ${result.wearableRows.map((row) => `
+            <tr class="${row.manualOverrideActive ? "manual-adjusted-row" : ""}">
               <td class="center"><strong>${row.no}</strong></td>
               <td class="center">${escapeHtml(row.item)}</td>
               <td>${escapeHtml(row.desc)}</td>
               <td class="center">${escapeHtml(String(row.unit))}</td>
               <td class="center">${qty(row.qty)}</td>
-              <td class="num">${row.unitPrice || ""}</td>
+              <td class="num">${priceCell(row)}</td>
               <td class="num"><strong>${moneyCell(row.amount)}</strong></td>
               <td class="center">${escapeHtml(row.remark)}</td>
             </tr>
@@ -2380,8 +2782,21 @@
         $("financeSection").classList.add("hidden");
         $("financeTable").innerHTML = "";
       }
+
+      bindManualPriceInputs();
+      updateManualPriceControls();
     }
 
+    function bindManualPriceInputs() {
+      document.querySelectorAll(".manual-price-input").forEach((input) => {
+        input.addEventListener("change", () => {
+          setManualPriceOverride(input.dataset.section, input.dataset.item, input.value);
+          renderAll();
+        });
+      });
+    }
+
+    
     function syncDependencies() {
       const wearable = checked("wearableEnabled");
       ["ecgEnabled", "spo2Enabled", "tempEnabled"].forEach((id) => $(id).disabled = !wearable);
@@ -2399,7 +2814,7 @@
         enabledEl.disabled = !serverActive;
 
         if (!serverActive || !enabledEl.checked) {
-          qtyEl.value = 0;
+          qtyEl.value = "";
           qtyEl.disabled = true;
         } else {
           qtyEl.disabled = false;
@@ -2432,11 +2847,13 @@
           el.value = data[key];
         }
       });
-      if ($("usageSwQty") && $("actualDevices")) $("usageSwQty").value = $("actualDevices").value || 0;
+      if ($("usageSwQty") && $("actualDevices")) $("usageSwQty").value = $("actualDevices").value || "";
       syncDependencies();
     }
 
     function resetForm() {
+      manualPriceEnabled = false;
+      clearManualPriceOverridesForCurrentScope();
       setInputs(DEFAULT_INPUTS);
       renderAll();
     }
@@ -2445,7 +2862,8 @@
       const user = getCurrentUser();
       if (!user || !currentResults) return;
       const input = readInputs();
-      const result = currentResults[selectedType][selectedGroup];
+      const baseResult = currentResults[selectedType][selectedGroup];
+      const result = buildQuoteViewData(baseResult, input, selectedType, selectedGroup);
       const saved = getSavedEstimates();
       const record = {
         id: `EST-${Date.now()}`,
@@ -2457,7 +2875,12 @@
         total: result.totals.total,
         system: result.totals.system,
         wearable: result.totals.wearable,
-        finance: result.totals.finance
+        finance: result.totals.finance,
+        manualPrice: {
+          enabled: manualPriceEnabled,
+          scope: quoteScopeKey(),
+          overrides: Object.assign({}, manualPriceOverrides[quoteScopeKey()] || {})
+        }
       };
       saved.unshift(record);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(saved.slice(0, 100)));
@@ -2509,6 +2932,10 @@
           selectedGroup = record.selectedGroup;
           $("detailType").value = selectedType;
           $("detailGroup").value = selectedGroup;
+          manualPriceEnabled = Boolean(record.manualPrice && record.manualPrice.enabled);
+          if (record.manualPrice && record.manualPrice.overrides) {
+            manualPriceOverrides[quoteScopeKey(record.selectedType, record.selectedGroup)] = Object.assign({}, record.manualPrice.overrides);
+          }
           setInputs(record.input);
           renderAll();
         });
@@ -2526,12 +2953,20 @@
     async function copyJson() {
       if (!currentResults) return;
       const user = getCurrentUser();
+      const baseResult = currentResults[selectedType][selectedGroup];
+      const adjustedQuote = buildQuoteViewData(baseResult, currentResults.input, selectedType, selectedGroup);
       const payload = {
         writer: user,
         selectedType,
         selectedGroup,
         input: currentResults.input,
-        result: currentResults[selectedType][selectedGroup]
+        result: baseResult,
+        adjustedQuote,
+        manualPrice: {
+          enabled: manualPriceEnabled,
+          scope: quoteScopeKey(),
+          overrides: Object.assign({}, manualPriceOverrides[quoteScopeKey()] || {})
+        }
       };
       const text = JSON.stringify(payload, null, 2);
       try {
@@ -2618,6 +3053,14 @@
     $("saveBtn").addEventListener("click", saveEstimate);
     $("printBtn").addEventListener("click", () => window.print());
     $("copyJsonBtn").addEventListener("click", copyJson);
+    $("manualPriceEnabledToggle").addEventListener("change", () => {
+      manualPriceEnabled = $("manualPriceEnabledToggle").checked;
+      renderAll();
+    });
+    $("clearManualPricesBtn").addEventListener("click", () => {
+      clearManualPriceOverridesForCurrentScope();
+      renderAll();
+    });
 
     $("detailType").addEventListener("change", () => {
       selectedType = $("detailType").value;
@@ -2634,6 +3077,11 @@
     $("showHiddenDetails").addEventListener("change", () => {
       renderQuoteDetail();
     });
+
+    if ($("actualDevices")) {
+      $("actualDevices").addEventListener("input", applyServiceConsoleAutoSelectionFromDevices);
+      $("actualDevices").addEventListener("change", applyServiceConsoleAutoSelectionFromDevices);
+    }
 
     document.querySelectorAll("#quoteForm input, #quoteForm select, #quoteForm textarea").forEach((el) => {
       el.addEventListener("input", renderAll);
