@@ -3008,7 +3008,7 @@
           <div class="server-console-box" style="margin-top: 12px;">
             <div class="section-title">Service Console 서버 타입</div>
             <p class="small-text" style="margin: 0 0 8px;">
-              실제 디바이스 수 입력 시 서버 타입이 자동 체크됩니다. 필요 시 체크/해제와 수량 조정이 가능합니다.
+              실제 디바이스 수 입력 시 서버 타입이 자동 체크됩니다. 여러 타입을 동시에 선택할 수 있고, 각 타입의 수량을 직접 조정할 수 있습니다. (예: 디바이스 200대 → 100 타입 수량 2) 선택한 타입은 견적서에 타입별로 각각 표시됩니다.
             </p>
             <div class="server-console-grid">
               <div class="server-console-head">선택</div>
@@ -3426,7 +3426,7 @@
         enabledEl.checked = isTarget;
 
         if (isTarget) {
-          // 같은 구간에서 이미 수량을 조정한 경우는 유지하고, 비어 있으면 1로 시작합니다.
+          // 자동 선택 시 비어 있으면 1로 시작하고, 사용자가 조정한 값은 유지합니다.
           if (Number(qtyEl.value || 0) < 1) qtyEl.value = 1;
         } else {
           qtyEl.value = "";
@@ -3495,7 +3495,7 @@
           label: server.label,
           unitPrice: server.unitPrice,
           enabled,
-          qty: enabled ? qtyValue : 0
+          qty: enabled ? (qtyValue >= 1 ? qtyValue : 1) : 0
         };
       });
     }
@@ -3778,9 +3778,10 @@
     }
 
     function applyManualPriceToRow(row, type, groupKey) {
+      const priceItem = row.priceKey || row.item;
       const manualActive = manualPriceEnabled && row.manualEditable !== false;
-      const hasOverride = manualActive && hasManualPriceOverride(row.section, row.item, type, groupKey);
-      const overridePrice = hasOverride ? getManualPriceOverride(row.section, row.item, type, groupKey) : null;
+      const hasOverride = manualActive && hasManualPriceOverride(row.section, priceItem, type, groupKey);
+      const overridePrice = hasOverride ? getManualPriceOverride(row.section, priceItem, type, groupKey) : null;
       const effectiveUnitPrice = hasOverride ? overridePrice : Number(row.defaultUnitPrice || 0);
       const adjustedAmount = hasOverride
         ? Math.round(Number(row.qty || 0) * Number(effectiveUnitPrice || 0))
@@ -3800,12 +3801,6 @@
         Math.round(rows.filter((row) => row.category === category).reduce((acc, row) => acc + Number(row.amount || 0), 0));
 
       const serviceRows = result.systemLines.filter((row) => row.category === "Service Console");
-      const serviceAmount = findCategoryAmount(result.systemLines, "Service Console");
-      const serviceQty = serviceRows.reduce((acc, row) => acc + Number(row.qty || 0), 0);
-      const serviceUnitPriceSum = serviceRows.reduce((acc, row) => acc + Number(row.unitPrice || 0), 0);
-      const serviceTypeSummary = serviceRows.length
-        ? serviceRows.map((row) => `${String(row.item || "").replace("Service Console ", "")} Type × ${formatQty(row.qty)}`).join(", ")
-        : "선택 서버 없음";
 
       const gatewayAmount = findCategoryAmount(result.systemLines, "Data Aggregator");
       const networkAmount = findCategoryAmount(result.systemLines, "Network");
@@ -3815,22 +3810,43 @@
       const constructionAmount = findCategoryAmount(result.systemLines, "Construction Cost");
       const networkQty = Number(input.poe8 || 0) + Number(input.poe16 || 0) + Number(input.poe24 || 0) + Number(input.poe48 || 0);
 
-      const systemRowsRaw = [
-        {
-          section: "system",
-          no: 1,
-          item: "Service Console",
-          desc: `On-Premise Server
-입원환자 실시간 모니터링 소프트웨어
+      const serverDescBody = `입원환자 실시간 모니터링 소프트웨어
 - 실시간 생체신호 수집 및 전송 서버 솔루션
 - 웹 브라우저 기반 대시보드, 모니터링 관리 솔루션
-- 부정맥 및 이상징후 분석 알고리즘 솔루션`,
-          unit: "EA",
-          qty: serviceQty,
-          defaultUnitPrice: serviceUnitPriceSum || roundDiv(serviceAmount, serviceQty),
-          originalAmount: serviceAmount,
-          remark: "계약 기간 내 보증"
-        },
+- 부정맥 및 이상징후 분석 알고리즘 솔루션`;
+
+      const serviceConsoleRows = serviceRows.length
+        ? serviceRows.map((row) => {
+            const typeLabel = String(row.item || "").replace("Service Console ", "");
+            return {
+              section: "system",
+              no: 1,
+              item: "Service Console",
+              priceKey: `Service Console ${typeLabel}`,
+              desc: `On-Premise Server / ${typeLabel} Type
+${serverDescBody}`,
+              unit: "EA",
+              qty: Number(row.qty || 0),
+              defaultUnitPrice: Number(row.unitPrice || 0),
+              originalAmount: Number(row.amount || 0),
+              remark: "계약 기간 내 보증"
+            };
+          })
+        : [{
+            section: "system",
+            no: 1,
+            item: "Service Console",
+            desc: `On-Premise Server
+${serverDescBody}`,
+            unit: "EA",
+            qty: 0,
+            defaultUnitPrice: 0,
+            originalAmount: 0,
+            remark: "계약 기간 내 보증"
+          }];
+
+      const systemRowsRaw = [
+        ...serviceConsoleRows,
         {
           section: "system",
           no: 2,
@@ -4079,7 +4095,7 @@
             min="0"
             step="1000"
             data-section="${escapeHtml(row.section)}"
-            data-item="${escapeHtml(row.item)}"
+            data-item="${escapeHtml(row.priceKey || row.item)}"
             value="${Math.round(Number(value || 0))}"
             aria-label="${escapeHtml(row.item)} 단가 수기 조정"
           />
@@ -4354,8 +4370,10 @@
         if (!serverActive || !enabledEl.checked) {
           qtyEl.value = "";
           qtyEl.disabled = true;
+          qtyEl.readOnly = false;
         } else {
           qtyEl.disabled = false;
+          qtyEl.readOnly = false;
           qtyEl.min = 1;
           if (Number(qtyEl.value || 0) < 1) qtyEl.value = 1;
         }
