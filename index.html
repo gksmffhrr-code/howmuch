@@ -2826,6 +2826,61 @@
       transform: translate(-50%, -50%) rotate(-12deg) !important;
     }
 
+    /* ───────────────────────────────────────────────
+       thynC 라이트버전 비고 표시
+       - 비고(8번째 셀)에 걸린 nowrap !important 규칙을 무력화하여
+         "계약 수량의 20% 범위 내 보증 / 그 이상 범위 내 50% 단가로 재구매"
+         두 줄 문구가 셀 안에서 잘리지 않고 모두 보이도록 함
+       - table 엘리먼트를 셀렉터에 포함해 기존 nth-child(8) 규칙보다
+         우선순위를 높임 (화면/앱 PDF export/브라우저 인쇄 모두 대응)
+       ─────────────────────────────────────────────── */
+    table.sheet-table td.remark-wrap {
+      white-space: normal !important;
+      word-break: keep-all !important;
+      overflow-wrap: break-word !important;
+      text-align: center !important;
+      vertical-align: middle !important;
+      line-height: 1.5 !important;
+      font-size: 11px !important;
+      padding-top: 12px !important;
+      padding-bottom: 12px !important;
+    }
+    /* 라이트버전 행 높이 확대 + 세로 중앙 정렬 */
+    table.sheet-table tr.light-row td {
+      vertical-align: middle !important;
+      padding-top: 12px !important;
+      padding-bottom: 12px !important;
+    }
+    /* 앱 PDF 저장(SVG 래스터라이즈) 컨텍스트 */
+    .pdf-exporting table.sheet-table td.remark-wrap,
+    body.pdf-exporting table.sheet-table td.remark-wrap {
+      white-space: normal !important;
+      word-break: keep-all !important;
+      overflow-wrap: break-word !important;
+      line-height: 1.42 !important;
+      font-size: 8.6px !important;
+      padding-top: 7px !important;
+      padding-bottom: 7px !important;
+    }
+    .pdf-exporting table.sheet-table tr.light-row td,
+    body.pdf-exporting table.sheet-table tr.light-row td {
+      padding-top: 7px !important;
+      padding-bottom: 7px !important;
+    }
+    /* 브라우저 인쇄(Ctrl+P) 컨텍스트 */
+    @media print {
+      table.sheet-table td.remark-wrap {
+        white-space: normal !important;
+        word-break: keep-all !important;
+        overflow-wrap: break-word !important;
+        line-height: 1.42 !important;
+        font-size: 8.6px !important;
+      }
+      table.sheet-table tr.light-row td {
+        vertical-align: middle !important;
+      }
+    }
+
   </style>
 </head>
 <body>
@@ -2983,6 +3038,9 @@
 
           <div class="section-title">옵션</div>
           <div class="check-grid">
+            <label class="check" style="grid-column: 1 / -1; background:#fff7ed; border-color:#fdba74; color:#9a3412;">
+              <input type="checkbox" id="lightVersionEnabled" /> thynC 라이트버전 (웨어러블 3종 단가 인하 · 보증조건 변경)
+            </label>
             <label class="check"><input type="checkbox" id="wearableEnabled" checked /> 웨어러블</label>
             <label class="check"><input type="checkbox" id="ecgEnabled" checked /> 심전계</label>
             <label class="check"><input type="checkbox" id="spo2Enabled" checked /> 산소포화도</label>
@@ -3230,6 +3288,20 @@
     const SESSION_KEY = "thync.session.user.v1";
     const STORAGE_KEY = "thync.saved.estimates.v1";
 
+    // ── Supabase 연동: 저장 견적을 공유 테이블(quote_logs)에 보관하여
+    //    어떤 계정/브라우저에서도 동일한 견적 내역을 조회 (RLS: anon select/insert/delete 허용)
+    const SUPABASE_URL = "https://kcelymlhturzsiwriviq.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtjZWx5bWxodHVyenNpd3JpdmlxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY3NDcwNjAsImV4cCI6MjA5MjMyMzA2MH0.bxcLNAjjzw0UrKYKxGaWNfiVQjDaorFGFvw0AE4kR0I";
+    const SUPABASE_TABLE = "quote_logs";
+
+    function supabaseHeaders(extra) {
+      return Object.assign({
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+        "Content-Type": "application/json"
+      }, extra || {});
+    }
+
     const PACKAGE_KEYS = [10, 20, 30, 40, 50, 100];
 
     const SERVICE_CONSOLE_TYPES = [
@@ -3249,6 +3321,12 @@
         spo2Sensor: 396000,
         thermometer: 118800,
         thermometerPatch: 143000
+      },
+      // thynC 라이트버전 전용 웨어러블 단가 (3종에만 적용)
+      wearableLight: {
+        ecg: 484000,
+        spo2: 968000,
+        spo2Sensor: 132000
       },
       service: {
         workstationSw: { 10: 1173700, 20: 953700, 30: 917400, 40: 733700, 50: 0, 100: 0 },
@@ -3320,6 +3398,7 @@
       poe48: "",
       usageSwQty: "",
       wearableEnabled: true,
+      lightVersionEnabled: false,
       ecgEnabled: true,
       spo2Enabled: true,
       spo2SensorEnabled: true,
@@ -3517,6 +3596,7 @@
         poe48: checked("networkEnabled") ? number("poe48") : 0,
         usageSwQty: number("actualDevices"),
         wearableEnabled: checked("wearableEnabled"),
+        lightVersionEnabled: checked("lightVersionEnabled"),
         ecgEnabled: checked("wearableEnabled") && checked("ecgEnabled"),
         spo2Enabled: checked("wearableEnabled") && checked("spo2Enabled"),
         spo2SensorEnabled: checked("wearableEnabled") && checked("spo2Enabled") && checked("spo2SensorEnabled"),
@@ -3638,14 +3718,20 @@
       const rows = [];
       if (!input.wearableEnabled) return rows;
 
+      // 라이트버전: 웨어러블 3종(심전계/산소포화도기/다회용 센서) 단가만 인하 적용
+      const light = !!input.lightVersionEnabled;
+      const ecgPrice = light ? COMMON.wearableLight.ecg : COMMON.wearable.ecg;
+      const spo2Price = light ? COMMON.wearableLight.spo2 : COMMON.wearable.spo2;
+      const sensorPrice = light ? COMMON.wearableLight.spo2Sensor : COMMON.wearable.spo2Sensor;
+
       if (input.ecgEnabled) {
-        rows.push(line("웨어러블 의료기기", "웨어러블 심전계", "mobiCARE-MC200M-T", input.ecgQty, COMMON.wearable.ecg));
+        rows.push(line("웨어러블 의료기기", "웨어러블 심전계", "mobiCARE-MC200M-T", input.ecgQty, ecgPrice));
       }
       if (input.spo2Enabled) {
-        rows.push(line("웨어러블 의료기기", "웨어러블 산소포화도기", "MP100W", input.spo2Qty, COMMON.wearable.spo2));
+        rows.push(line("웨어러블 의료기기", "웨어러블 산소포화도기", "MP100W", input.spo2Qty, spo2Price));
       }
       if (input.spo2SensorEnabled) {
-        rows.push(line("웨어러블 의료기기", "다회용 산소포화도 센서", "MP1000F", input.spo2Qty, COMMON.wearable.spo2Sensor));
+        rows.push(line("웨어러블 의료기기", "다회용 산소포화도 센서", "MP1000F", input.spo2Qty, sensorPrice));
       }
       if (input.tempEnabled) {
         rows.push(line("웨어러블 의료기기", "웨어러블 체온계", "MT100D-CORE", pkg, COMMON.wearable.thermometer));
@@ -3915,6 +4001,11 @@ ${serverDescBody}`,
       const wearableSpo2 = result.wearableLines.find((row) => row.item === "웨어러블 산소포화도기");
       const wearableSensor = result.wearableLines.find((row) => row.item === "다회용 산소포화도 센서");
 
+      // 라이트버전 보증조건: 계약 기간 내 보증 → 수량 비례 보증 + 초과분 50% 재구매
+      const wearableRemark = input.lightVersionEnabled
+        ? "계약 수량의 20% 범위 내 보증\n그 이상 범위 내 50% 단가로 재구매"
+        : "계약 기간 내 보증";
+
       const wearableRowsRaw = [
         {
           section: "wearable",
@@ -3925,7 +4016,7 @@ ${serverDescBody}`,
           qty: wearableEcg ? wearableEcg.qty : 0,
           defaultUnitPrice: wearableEcg ? wearableEcg.unitPrice : 0,
           originalAmount: wearableEcg ? wearableEcg.amount : 0,
-          remark: "계약 기간 내 보증"
+          remark: wearableRemark
         },
         {
           section: "wearable",
@@ -3936,7 +4027,7 @@ ${serverDescBody}`,
           qty: wearableSpo2 ? wearableSpo2.qty : 0,
           defaultUnitPrice: wearableSpo2 ? wearableSpo2.unitPrice : 0,
           originalAmount: wearableSpo2 ? wearableSpo2.amount : 0,
-          remark: "계약 기간 내 보증"
+          remark: wearableRemark
         },
         {
           section: "wearable",
@@ -3947,7 +4038,7 @@ ${serverDescBody}`,
           qty: wearableSensor ? wearableSensor.qty : 0,
           defaultUnitPrice: wearableSensor ? wearableSensor.unitPrice : 0,
           originalAmount: wearableSensor ? wearableSensor.amount : 0,
-          remark: "계약 기간 내 보증"
+          remark: wearableRemark
         }
       ];
 
@@ -4078,6 +4169,10 @@ ${serverDescBody}`,
       };
       const qty = (value) => new Intl.NumberFormat("ko-KR").format(Number(value || 0));
 
+      // 라이트버전: 비고 줄바꿈(\n)을 <br>로 강제 변환하여 모든 렌더링(화면/PDF)에서 안정적으로 두 줄 표시
+      const lightOn = !!input.lightVersionEnabled;
+      const remarkHtml = (r) => escapeHtml(r || "").replace(/\n/g, "<br>");
+
       const priceCell = (row) => {
         const value = row.manualOverrideActive ? row.effectiveUnitPrice : row.defaultUnitPrice;
         if (!manualPriceEnabled) {
@@ -4107,7 +4202,7 @@ ${serverDescBody}`,
 
       const productSubRows = [
         { subNo: "1-1", item: "시스템", desc: "입원환자 실시간 모니터링 서버 및 관리 시스템", amount: result.totals.system, remark: "계약 기간 내 보증" },
-        { subNo: "1-2", item: "웨어러블 의료기기", desc: "웨어러블 심전계, 산소포화도기, 다회용 산소포화도 센서", amount: result.totals.wearable, remark: "계약 기간 내 보증" }
+        { subNo: "1-2", item: "웨어러블 의료기기", desc: "웨어러블 심전계, 산소포화도기, 다회용 산소포화도 센서", amount: result.totals.wearable, remark: input.lightVersionEnabled ? "계약 수량의 20% 범위 내 보증\n그 이상 범위 내 50% 단가로 재구매" : "계약 기간 내 보증" }
       ];
 
       const productGroupRowCount = 1 + productSubRows.length;
@@ -4141,7 +4236,7 @@ ${serverDescBody}`,
                 <div class="sub-desc">${escapeHtml(row.desc)}</div>
               </td>
               <td class="num"><strong>${moneyCell(row.amount)}</strong></td>
-              <td class="center">${escapeHtml(row.remark || "")}</td>
+              <td class="center${(row.remark || "").includes("\n") ? " remark-wrap" : ""}">${remarkHtml(row.remark || "")}</td>
             </tr>
           `).join("")}
           ${selectedType === "usage" ? `
@@ -4250,13 +4345,13 @@ ${serverDescBody}`,
       $("wearableTable").innerHTML = `
         <colgroup>
           <col style="width:4%;" />
-          <col style="width:18%;" />
-          <col style="width:30%;" />
+          <col style="width:${lightOn ? "16%" : "18%"};" />
+          <col style="width:${lightOn ? "23%" : "30%"};" />
           <col style="width:5%;" />
           <col style="width:5%;" />
           <col style="width:11%;" />
           <col style="width:12%;" />
-          <col style="width:15%;" />
+          <col style="width:${lightOn ? "24%" : "15%"};" />
         </colgroup>
         <thead>
           <tr>
@@ -4272,7 +4367,7 @@ ${serverDescBody}`,
         </thead>
         <tbody>
           ${result.wearableRows.map((row) => `
-            <tr class="${row.manualOverrideActive ? "manual-adjusted-row" : ""}">
+            <tr class="${row.manualOverrideActive ? "manual-adjusted-row" : ""}${lightOn ? " light-row" : ""}">
               <td class="center"><strong>${row.no}</strong></td>
               <td class="center">${escapeHtml(row.item)}</td>
               <td>${escapeHtml(row.desc)}</td>
@@ -4280,7 +4375,7 @@ ${serverDescBody}`,
               <td class="center">${qty(row.qty)}</td>
               <td class="num">${priceCell(row)}</td>
               <td class="num"><strong>${moneyCell(row.amount)}</strong></td>
-              <td class="center">${escapeHtml(row.remark)}</td>
+              <td class="center${lightOn ? " remark-wrap" : ""}">${remarkHtml(row.remark)}</td>
             </tr>
           `).join("")}
           <tr class="subtotal">
@@ -4410,34 +4505,65 @@ ${serverDescBody}`,
       renderAll();
     }
 
-    function saveEstimate() {
+    async function saveEstimate() {
       const user = getCurrentUser();
       if (!user || !currentResults) return;
       const input = readInputs();
       const baseResult = currentResults[selectedType][selectedGroup];
       const result = buildQuoteViewData(baseResult, input, selectedType, selectedGroup);
-      const saved = getSavedEstimates();
-      const record = {
-        id: `EST-${Date.now()}`,
-        createdAt: new Date().toISOString(),
-        writer: user,
-        selectedType,
-        selectedGroup,
-        input,
-        total: result.totals.total,
-        system: result.totals.system,
-        wearable: result.totals.wearable,
-        finance: result.totals.finance,
-        manualPrice: {
+
+      const num = (v) => Number(v) || 0;
+      const networkQty = num(input.poe8) + num(input.poe16) + num(input.poe24) + num(input.poe48);
+
+      // quote_logs 테이블 컬럼에 매핑 (input_snapshot에 전체 입력값을 담아 '불러오기' 시 그대로 복원)
+      const row = {
+        writer_id: user.id,
+        writer_name: user.name,
+        hospital_name: input.hospitalName || "-",
+        quote_type: selectedType,
+        quote_group: selectedGroup,
+        ward_count: num(input.wardCount),
+        installed_beds: num(input.installedBeds),
+        actual_devices: num(input.actualDevices),
+        ecg_qty: num(input.ecgQty),
+        spo2_qty: num(input.spo2Qty),
+        gateway_qty: num(input.gatewayQty),
+        central_count: num(input.centralCount),
+        nurse_count: num(input.nurseCount),
+        mobile_count: num(input.mobileCount),
+        monitor_qty: num(input.monitorQty),
+        network_qty: networkQty,
+        server_selections: input.serverConsoleSelections || [],
+        total_amount: num(result.totals.total),
+        system_amount: num(result.totals.system),
+        wearable_amount: num(result.totals.wearable),
+        finance_amount: num(result.totals.finance),
+        input_snapshot: input,
+        manual_price: {
           enabled: manualPriceEnabled,
           scope: quoteScopeKey(),
           overrides: Object.assign({}, manualPriceOverrides[quoteScopeKey()] || {})
         }
       };
-      saved.unshift(record);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(saved.slice(0, 100)));
-      renderHistory();
-      alert("브라우저 로컬 저장소에 저장했습니다.");
+
+      const btn = $("saveBtn");
+      const origLabel = btn ? btn.textContent : "";
+      if (btn) { btn.disabled = true; btn.textContent = "저장 중..."; }
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}`, {
+          method: "POST",
+          headers: supabaseHeaders({ "Prefer": "return=minimal" }),
+          body: JSON.stringify(row)
+        });
+        if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+        await renderHistory();
+        alert("저장했습니다. 이제 모든 계정에서 이 견적 내역을 볼 수 있습니다.");
+      } catch (error) {
+        console.error(error);
+        alert("저장 중 오류가 발생했습니다. 네트워크 연결 또는 접근 권한을 확인해 주세요.\n" + error.message);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = origLabel || "저장"; }
+      }
     }
 
     function getSavedEstimates() {
@@ -4448,28 +4574,43 @@ ${serverDescBody}`,
       }
     }
 
-    function renderHistory() {
-      const user = getCurrentUser();
+    async function renderHistory() {
       const table = $("historyTable");
-      if (!user) return;
-      const rows = getSavedEstimates().filter((row) => row.writer && row.writer.id === user.id);
-      if (rows.length === 0) {
-        table.innerHTML = `<tbody><tr><td class="center muted">저장한 견적이 없습니다.</td></tr></tbody>`;
+      if (!table) return;
+      table.innerHTML = `<tbody><tr><td class="center muted">견적 내역을 불러오는 중...</td></tr></tbody>`;
+
+      let rows = [];
+      try {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?select=*&order=created_at.desc&limit=300`, {
+          headers: supabaseHeaders()
+        });
+        if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+        rows = await res.json();
+      } catch (error) {
+        console.error(error);
+        table.innerHTML = `<tbody><tr><td class="center danger-text">견적 내역을 불러오지 못했습니다. (${escapeHtml(error.message)})</td></tr></tbody>`;
         return;
       }
 
+      if (!Array.isArray(rows) || rows.length === 0) {
+        table.innerHTML = `<tbody><tr><td class="center muted">저장된 견적이 없습니다.</td></tr></tbody>`;
+        return;
+      }
+
+      const groupLabel = (g) => (GROUPS[g] ? GROUPS[g].label : (g || "-"));
       table.innerHTML = `
-        <thead><tr><th>저장일</th><th>도입처</th><th>유형</th><th>금액</th><th>작업</th></tr></thead>
+        <thead><tr><th>저장일</th><th>도입처</th><th>유형</th><th>금액</th><th>작성자</th><th>작업</th></tr></thead>
         <tbody>
           ${rows.map((row) => `
             <tr>
-              <td>${new Date(row.createdAt).toLocaleString("ko-KR")}</td>
-              <td>${escapeHtml(row.input.hospitalName || "-")}</td>
-              <td>${row.selectedType === "usage" ? "사용량비례형" : "일반형"}(${GROUPS[row.selectedGroup].label})</td>
-              <td class="num">${money(row.total)}</td>
+              <td>${new Date(row.created_at).toLocaleString("ko-KR")}</td>
+              <td>${escapeHtml(row.hospital_name || "-")}</td>
+              <td>${row.quote_type === "usage" ? "사용량비례형" : "일반형"}(${escapeHtml(groupLabel(row.quote_group))})</td>
+              <td class="num">${money(row.total_amount)}</td>
+              <td>${escapeHtml(row.writer_name || row.writer_id || "-")}</td>
               <td>
-                <button type="button" class="small ghost" data-load="${row.id}">불러오기</button>
-                <button type="button" class="small danger" data-delete="${row.id}">삭제</button>
+                <button type="button" class="small ghost" data-load="${escapeHtml(row.id)}">불러오기</button>
+                <button type="button" class="small danger" data-delete="${escapeHtml(row.id)}">삭제</button>
               </td>
             </tr>
           `).join("")}
@@ -4478,26 +4619,38 @@ ${serverDescBody}`,
 
       table.querySelectorAll("[data-load]").forEach((btn) => {
         btn.addEventListener("click", () => {
-          const record = getSavedEstimates().find((row) => row.id === btn.dataset.load);
+          const record = rows.find((row) => String(row.id) === btn.dataset.load);
           if (!record) return;
-          selectedType = record.selectedType;
-          selectedGroup = record.selectedGroup;
+          selectedType = record.quote_type === "usage" ? "usage" : "normal";
+          selectedGroup = (record.quote_group && GROUPS[record.quote_group]) ? record.quote_group : "A";
           $("detailType").value = selectedType;
           $("detailGroup").value = selectedGroup;
-          manualPriceEnabled = Boolean(record.manualPrice && record.manualPrice.enabled);
-          if (record.manualPrice && record.manualPrice.overrides) {
-            manualPriceOverrides[quoteScopeKey(record.selectedType, record.selectedGroup)] = Object.assign({}, record.manualPrice.overrides);
+          const mp = record.manual_price || {};
+          manualPriceEnabled = Boolean(mp.enabled);
+          if (mp.overrides) {
+            manualPriceOverrides[quoteScopeKey(selectedType, selectedGroup)] = Object.assign({}, mp.overrides);
           }
-          setInputs(record.input);
+          setInputs(record.input_snapshot || {});
           renderAll();
         });
       });
 
       table.querySelectorAll("[data-delete]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const next = getSavedEstimates().filter((row) => row.id !== btn.dataset.delete);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-          renderHistory();
+        btn.addEventListener("click", async () => {
+          if (!confirm("이 견적 기록을 삭제할까요? 모든 계정에서 함께 삭제됩니다.")) return;
+          btn.disabled = true;
+          try {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?id=eq.${encodeURIComponent(btn.dataset.delete)}`, {
+              method: "DELETE",
+              headers: supabaseHeaders({ "Prefer": "return=minimal" })
+            });
+            if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+            await renderHistory();
+          } catch (error) {
+            console.error(error);
+            alert("삭제 중 오류가 발생했습니다.\n" + error.message);
+            btn.disabled = false;
+          }
         });
       });
     }
@@ -4516,7 +4669,8 @@ ${serverDescBody}`,
       const hospital = sanitizeFileNamePart(input.hospitalName && input.hospitalName !== "-" ? input.hospitalName : "병원명미입력");
       const typeLabel = selectedType === "usage" ? "사용량비례형" : "일반형";
       const groupLabel = GROUPS[selectedGroup] ? GROUPS[selectedGroup].label : "가군";
-      return `${hospital}_${typeLabel}_${groupLabel}.pdf`;
+      const lightLabel = input.lightVersionEnabled ? "_라이트버전" : "";
+      return `${hospital}_${typeLabel}_${groupLabel}${lightLabel}.pdf`;
     }
 
     function waitForFrame() {
