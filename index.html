@@ -2829,7 +2829,7 @@
     /* ───────────────────────────────────────────────
        thynC 라이트버전 비고 표시
        - 비고(8번째 셀)에 걸린 nowrap !important 규칙을 무력화하여
-         "계약 수량의 30% 범위 내 보증 / 그 이상 범위 내 50% 단가로 재구매"
+         "계약 수량의 100% 범위 내 보증 / 계약수량 초과시 50% 단가로 재구매"
          두 줄 문구가 셀 안에서 잘리지 않고 모두 보이도록 함
        - table 엘리먼트를 셀렉터에 포함해 기존 nth-child(8) 규칙보다
          우선순위를 높임 (화면/앱 PDF export/브라우저 인쇄 모두 대응)
@@ -3265,6 +3265,7 @@
             <div class="quote-footer-note">
               <div>시스템의 설치는 도입처와 협의에 따라 변경될 수 있습니다.</div>
               <div>계약 종료 이후 유지보수 계약 비용은 도입처와 협의에 따라 변경될 수 있습니다.</div>
+              <div>견적서 유효기간: 발행일로부터 3개월</div>
             </div>
           </div>
         </section>
@@ -4057,7 +4058,7 @@ ${serverDescBody}`,
 
       // 라이트버전 보증조건: 계약 기간 내 보증 → 수량 비례 보증 + 초과분 50% 재구매
       const wearableRemark = input.lightVersionEnabled
-        ? "계약 수량의 30% 범위 내 보증\n그 이상 범위 내 50% 단가로 재구매"
+        ? "계약 수량의 100% 범위 내 보증\n계약수량 초과시 50% 단가로 재구매"
         : "계약 기간 내 보증";
 
       const wearableRowsRaw = [
@@ -4256,7 +4257,7 @@ ${serverDescBody}`,
 
       const productSubRows = [
         { subNo: "1-1", item: "시스템", desc: "입원환자 실시간 모니터링 서버 및 관리 시스템", amount: result.totals.system, remark: "계약 기간 내 보증" },
-        { subNo: "1-2", item: "웨어러블 의료기기", desc: "웨어러블 심전계, 산소포화도기, 다회용 산소포화도 센서", amount: result.totals.wearable, remark: input.lightVersionEnabled ? "계약 수량의 30% 범위 내 보증\n그 이상 범위 내 50% 단가로 재구매" : "계약 기간 내 보증" }
+        { subNo: "1-2", item: "웨어러블 의료기기", desc: "웨어러블 심전계, 산소포화도기, 다회용 산소포화도 센서", amount: result.totals.wearable, remark: input.lightVersionEnabled ? "계약 수량의 100% 범위 내 보증\n계약수량 초과시 50% 단가로 재구매" : "계약 기간 내 보증" }
       ];
 
       const productGroupRowCount = 1 + productSubRows.length;
@@ -4942,6 +4943,11 @@ ${serverDescBody}`,
       sumRow("웨어러블 합계", t.wearable, 4, 7);
       if (isUsage && Number(t.finance) > 0) sumRow("서버 운용비 합계", t.finance, 4, 7);
       sumRow("총 견적금액 (부가세포함)", t.total, 8, 9);
+
+      // 견적서 유효기간 안내
+      blank();
+      const validityIdx = addRow([]);
+      mergeLabel(validityIdx, 1, 8, "견적서 유효기간: 발행일로부터 3개월", 10);
 
       // ── sheetData / mergeCells 직렬화 ──
       let sheetData = "";
