@@ -2829,7 +2829,7 @@
     /* ───────────────────────────────────────────────
        thynC 라이트버전 비고 표시
        - 비고(8번째 셀)에 걸린 nowrap !important 규칙을 무력화하여
-         "계약 수량의 20% 범위 내 보증 / 그 이상 범위 내 50% 단가로 재구매"
+         "계약 수량의 30% 범위 내 보증 / 그 이상 범위 내 50% 단가로 재구매"
          두 줄 문구가 셀 안에서 잘리지 않고 모두 보이도록 함
        - table 엘리먼트를 셀렉터에 포함해 기존 nth-child(8) 규칙보다
          우선순위를 높임 (화면/앱 PDF export/브라우저 인쇄 모두 대응)
@@ -2879,6 +2879,37 @@
       table.sheet-table tr.light-row td {
         vertical-align: middle !important;
       }
+    }
+    /* 시스템 표 하위행(예: 2-1 Mobile gateway): 회색·정상 굵기·항목 들여쓰기 */
+    .sheet-table.detail-table tr.system-subrow td {
+      color: #6b7280;
+      font-weight: 400;
+      background: #fafafa;
+    }
+    .sheet-table.detail-table tr.system-subrow td strong {
+      font-weight: 400;
+      color: #6b7280;
+    }
+    .sheet-table.detail-table tr.system-subrow td:nth-child(2) {
+      padding-left: 24px;
+    }
+    /* 비고 수기입력 가능한 셀: 편집 가능 표시 및 포커스 강조 */
+    .sheet-table td.remark-edit {
+      cursor: text;
+    }
+    .sheet-table td.remark-edit:hover {
+      background: #f5f7fb;
+    }
+    .sheet-table td.remark-edit:focus {
+      background: #eef2ff;
+      outline: 1px solid #94a3f8;
+      outline-offset: -1px;
+    }
+    /* PDF 출력 시에는 편집 강조 표시를 숨김 */
+    .pdf-exporting .sheet-table td.remark-edit,
+    body.pdf-exporting .sheet-table td.remark-edit {
+      background: transparent !important;
+      outline: none !important;
     }
 
   </style>
@@ -2990,6 +3021,10 @@
               <input id="gatewayQty" type="number" min="0" placeholder="입력" />
             </div>
             <div>
+              <label for="mobileGatewayQty">Mobile gateway 수량</label>
+              <input id="mobileGatewayQty" type="number" min="0" placeholder="입력 (옵션)" />
+            </div>
+            <div>
               <label for="centralCount">Central Monitoring 수량</label>
               <input id="centralCount" type="number" min="0" placeholder="입력" />
             </div>
@@ -3047,6 +3082,7 @@
             <label class="check"><input type="checkbox" id="spo2SensorEnabled" checked /> 다회용 센서</label>
             <label class="check"><input type="checkbox" id="tempEnabled" /> 체온계</label>
             <label class="check"><input type="checkbox" id="gatewayEnabled" checked /> Gateway</label>
+            <label class="check"><input type="checkbox" id="mobileGatewayEnabled" /> Mobile gateway</label>
             <label class="check"><input type="checkbox" id="networkEnabled" checked /> Network Switch</label>
             <label class="check"><input type="checkbox" id="serverEnabled" checked /> Server</label>
             <label class="check"><input type="checkbox" id="nurseStationEnabled" checked /> 간호사 스테이션</label>
@@ -3107,6 +3143,7 @@
             <button type="button" class="ghost" id="resetBtn">초기화</button>
             <button type="button" id="cartOnQuoteBtn" style="background:#6d28d9;">CART ON 견적서</button>
             <button type="button" class="secondary" id="saveBtn">저장</button>
+            <button type="button" class="accent" id="excelBtn" style="background:#15803d;">엑셀 저장</button>
             <button type="button" class="accent" id="printBtn">PDF 저장</button>
           </div>
         </form>
@@ -3387,6 +3424,7 @@
       ecgQty: "",
       spo2Qty: "",
       gatewayQty: "",
+      mobileGatewayQty: "",
       centralCount: "",
       nurseCount: "",
       mobileCount: "",
@@ -3404,6 +3442,7 @@
       spo2SensorEnabled: true,
       tempEnabled: false,
       gatewayEnabled: true,
+      mobileGatewayEnabled: false,
       networkEnabled: true,
       serverEnabled: true,
       nurseStationEnabled: true,
@@ -3585,6 +3624,7 @@
         ecgQty: hasValue("ecgQty") ? number("ecgQty") : number("actualDevices"),
         spo2Qty: hasValue("spo2Qty") ? number("spo2Qty") : number("actualDevices"),
         gatewayQty: checked("gatewayEnabled") ? number("gatewayQty") : 0,
+        mobileGatewayQty: number("mobileGatewayQty"),
         centralCount: checked("nurseStationEnabled") && checked("dashboardEnabled") ? number("centralCount") : 0,
         nurseCount: checked("nurseStationEnabled") && checked("managerEnabled") ? number("nurseCount") : 0,
         mobileCount: checked("mobileEnabled") ? number("mobileCount") : 0,
@@ -3602,6 +3642,7 @@
         spo2SensorEnabled: checked("wearableEnabled") && checked("spo2Enabled") && checked("spo2SensorEnabled"),
         tempEnabled: checked("wearableEnabled") && checked("tempEnabled"),
         gatewayEnabled: checked("gatewayEnabled"),
+        mobileGatewayEnabled: checked("mobileGatewayEnabled"),
         networkEnabled: checked("networkEnabled"),
         serverEnabled: checked("serverEnabled"),
         nurseStationEnabled: checked("nurseStationEnabled"),
@@ -3940,6 +3981,19 @@ ${serverDescBody}`,
           originalAmount: gatewayAmount,
           remark: "계약 기간 내 보증"
         },
+        ...(input.mobileGatewayEnabled ? [{
+          section: "system",
+          no: 2,
+          subNo: "2-1",
+          isSubRow: true,
+          item: "Mobile gateway",
+          desc: "스마트폰 게이트웨이 SW, Smart phone",
+          unit: "EA",
+          qty: input.mobileGatewayQty,
+          defaultUnitPrice: 1200000,
+          originalAmount: Math.round(Number(input.mobileGatewayQty || 0) * 1200000),
+          remark: "계약 기간 내 보증"
+        }] : []),
         {
           section: "system",
           no: 3,
@@ -4003,7 +4057,7 @@ ${serverDescBody}`,
 
       // 라이트버전 보증조건: 계약 기간 내 보증 → 수량 비례 보증 + 초과분 50% 재구매
       const wearableRemark = input.lightVersionEnabled
-        ? "계약 수량의 20% 범위 내 보증\n그 이상 범위 내 50% 단가로 재구매"
+        ? "계약 수량의 30% 범위 내 보증\n그 이상 범위 내 50% 단가로 재구매"
         : "계약 기간 내 보증";
 
       const wearableRowsRaw = [
@@ -4202,7 +4256,7 @@ ${serverDescBody}`,
 
       const productSubRows = [
         { subNo: "1-1", item: "시스템", desc: "입원환자 실시간 모니터링 서버 및 관리 시스템", amount: result.totals.system, remark: "계약 기간 내 보증" },
-        { subNo: "1-2", item: "웨어러블 의료기기", desc: "웨어러블 심전계, 산소포화도기, 다회용 산소포화도 센서", amount: result.totals.wearable, remark: input.lightVersionEnabled ? "계약 수량의 20% 범위 내 보증\n그 이상 범위 내 50% 단가로 재구매" : "계약 기간 내 보증" }
+        { subNo: "1-2", item: "웨어러블 의료기기", desc: "웨어러블 심전계, 산소포화도기, 다회용 산소포화도 센서", amount: result.totals.wearable, remark: input.lightVersionEnabled ? "계약 수량의 30% 범위 내 보증\n그 이상 범위 내 50% 단가로 재구매" : "계약 기간 내 보증" }
       ];
 
       const productGroupRowCount = 1 + productSubRows.length;
@@ -4275,15 +4329,15 @@ ${serverDescBody}`,
         </thead>
         <tbody>
           ${result.systemRows.map((row) => `
-            <tr class="${row.manualOverrideActive ? "manual-adjusted-row" : ""}">
-              <td class="center"><strong>${row.no}</strong></td>
+            <tr class="${row.manualOverrideActive ? "manual-adjusted-row" : ""} ${row.isSubRow ? "system-subrow" : ""}">
+              <td class="center"><strong>${escapeHtml(String(row.subNo || row.no))}</strong></td>
               <td class="center"><strong>${escapeHtml(row.item)}</strong></td>
               <td>${escapeHtml(row.desc)}</td>
               <td class="center">${escapeHtml(String(row.unit))}</td>
               <td class="center">${qty(row.qty)}</td>
               <td class="num">${priceCell(row)}</td>
               <td class="num"><strong>${moneyCell(row.amount)}</strong></td>
-              <td class="center">${escapeHtml(row.remark)}</td>
+              ${editableRemarkCell("sys", row, false)}
             </tr>
           `).join("")}
           <tr class="subtotal">
@@ -4375,7 +4429,7 @@ ${serverDescBody}`,
               <td class="center">${qty(row.qty)}</td>
               <td class="num">${priceCell(row)}</td>
               <td class="num"><strong>${moneyCell(row.amount)}</strong></td>
-              <td class="center${lightOn ? " remark-wrap" : ""}">${remarkHtml(row.remark)}</td>
+              ${editableRemarkCell("wear", row, lightOn)}
             </tr>
           `).join("")}
           <tr class="subtotal">
@@ -4448,6 +4502,7 @@ ${serverDescBody}`,
       if ($("spo2Qty")) $("spo2Qty").placeholder = qtyPlaceholder;
 
       $("gatewayQty").disabled = !checked("gatewayEnabled");
+      if ($("mobileGatewayQty")) $("mobileGatewayQty").disabled = !checked("mobileGatewayEnabled");
       ["poe8", "poe16", "poe24", "poe48"].forEach((id) => $(id).disabled = !checked("networkEnabled"));
 
       SERVICE_CONSOLE_TYPES.forEach((server) => {
@@ -4485,6 +4540,11 @@ ${serverDescBody}`,
 
     function setInputs(input) {
       const data = Object.assign({}, DEFAULT_INPUTS, input || {});
+      // 비고 수기입력 복원: 저장 스냅샷에 있으면 그대로 복원하고, 없으면(초기화 등) 모두 비운다.
+      Object.keys(manualRemarks).forEach((k) => delete manualRemarks[k]);
+      if (input && input.manualRemarks && typeof input.manualRemarks === "object") {
+        Object.assign(manualRemarks, input.manualRemarks);
+      }
       Object.keys(DEFAULT_INPUTS).forEach((key) => {
         const el = $(key);
         if (!el) return;
@@ -4494,6 +4554,19 @@ ${serverDescBody}`,
           el.value = data[key];
         }
       });
+      // 콘솔 서버(Service Console) 선택·수량 복원: 저장 스냅샷의 serverConsoleSelections 배열에서
+      // 체크박스/수량을 재구성한다. syncDependencies()가 미선택 항목의 수량을 비우므로 그 직전에 수행.
+      if (Array.isArray(data.serverConsoleSelections) && data.serverConsoleSelections.length) {
+        const anyEnabled = data.serverConsoleSelections.some((s) => s && s.enabled);
+        if (anyEnabled && $("serverEnabled")) $("serverEnabled").checked = true;
+        SERVICE_CONSOLE_TYPES.forEach((server) => {
+          const sel = data.serverConsoleSelections.find((s) => s && String(s.type) === String(server.type));
+          const enabledEl = $(`serviceConsole${server.type}Enabled`);
+          const qtyEl = $(`serviceConsole${server.type}Qty`);
+          if (enabledEl) enabledEl.checked = Boolean(sel && sel.enabled);
+          if (qtyEl) qtyEl.value = (sel && sel.enabled && Number(sel.qty) > 0) ? sel.qty : "";
+        });
+      }
       if ($("usageSwQty") && $("actualDevices")) $("usageSwQty").value = $("actualDevices").value || "";
       syncDependencies();
     }
@@ -4538,7 +4611,7 @@ ${serverDescBody}`,
         system_amount: num(result.totals.system),
         wearable_amount: num(result.totals.wearable),
         finance_amount: num(result.totals.finance),
-        input_snapshot: input,
+        input_snapshot: Object.assign({}, input, { manualRemarks: Object.assign({}, manualRemarks) }),
         manual_price: {
           enabled: manualPriceEnabled,
           scope: quoteScopeKey(),
@@ -4671,6 +4744,331 @@ ${serverDescBody}`,
       const groupLabel = GROUPS[selectedGroup] ? GROUPS[selectedGroup].label : "가군";
       const lightLabel = input.lightVersionEnabled ? "_라이트버전" : "";
       return `${hospital}_${typeLabel}_${groupLabel}${lightLabel}.pdf`;
+    }
+
+    // ── 견적서 엑셀(.xlsx) 내보내기: 외부 라이브러리 없이 OOXML + ZIP을 직접 생성 ──
+    const XLSX_CRC_TABLE = (() => {
+      const t = new Uint32Array(256);
+      for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+        t[n] = c >>> 0;
+      }
+      return t;
+    })();
+    function xlsxCrc32(bytes) {
+      let c = 0xFFFFFFFF;
+      for (let i = 0; i < bytes.length; i++) c = XLSX_CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+      return (c ^ 0xFFFFFFFF) >>> 0;
+    }
+    function xlsxZip(files) {
+      const enc = new TextEncoder();
+      const chunks = [];
+      const central = [];
+      let offset = 0;
+      for (const f of files) {
+        const nameBytes = enc.encode(f.name);
+        const crc = xlsxCrc32(f.data);
+        const size = f.data.length;
+        const lh = new Uint8Array(30 + nameBytes.length);
+        const dv = new DataView(lh.buffer);
+        dv.setUint32(0, 0x04034b50, true);
+        dv.setUint16(4, 20, true);
+        dv.setUint16(6, 0x0800, true);
+        dv.setUint16(8, 0, true);
+        dv.setUint16(10, 0, true);
+        dv.setUint16(12, 0, true);
+        dv.setUint32(14, crc, true);
+        dv.setUint32(18, size, true);
+        dv.setUint32(22, size, true);
+        dv.setUint16(26, nameBytes.length, true);
+        dv.setUint16(28, 0, true);
+        lh.set(nameBytes, 30);
+        chunks.push(lh, f.data);
+        const ch = new Uint8Array(46 + nameBytes.length);
+        const cv = new DataView(ch.buffer);
+        cv.setUint32(0, 0x02014b50, true);
+        cv.setUint16(4, 20, true);
+        cv.setUint16(6, 20, true);
+        cv.setUint16(8, 0x0800, true);
+        cv.setUint16(10, 0, true);
+        cv.setUint16(12, 0, true);
+        cv.setUint16(14, 0, true);
+        cv.setUint32(16, crc, true);
+        cv.setUint32(20, size, true);
+        cv.setUint32(24, size, true);
+        cv.setUint16(28, nameBytes.length, true);
+        cv.setUint16(30, 0, true);
+        cv.setUint16(32, 0, true);
+        cv.setUint16(34, 0, true);
+        cv.setUint16(36, 0, true);
+        cv.setUint32(38, 0, true);
+        cv.setUint32(42, offset, true);
+        ch.set(nameBytes, 46);
+        central.push(ch);
+        offset += lh.length + f.data.length;
+      }
+      const centralStart = offset;
+      let centralSize = 0;
+      for (const c of central) { chunks.push(c); centralSize += c.length; offset += c.length; }
+      const eocd = new Uint8Array(22);
+      const ev = new DataView(eocd.buffer);
+      ev.setUint32(0, 0x06054b50, true);
+      ev.setUint16(4, 0, true);
+      ev.setUint16(6, 0, true);
+      ev.setUint16(8, central.length, true);
+      ev.setUint16(10, central.length, true);
+      ev.setUint32(12, centralSize, true);
+      ev.setUint32(16, centralStart, true);
+      ev.setUint16(20, 0, true);
+      chunks.push(eocd);
+      let total = 0;
+      for (const c of chunks) total += c.length;
+      const out = new Uint8Array(total);
+      let p = 0;
+      for (const c of chunks) { out.set(c, p); p += c.length; }
+      return out;
+    }
+    function xlsxEscape(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+    }
+    function xlsxColLetter(n) {
+      let s = "";
+      while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); }
+      return s;
+    }
+
+    function getQuoteExcelFileName() {
+      const input = currentResults ? currentResults.input : readInputs();
+      const hospital = sanitizeFileNamePart(input.hospitalName && input.hospitalName !== "-" ? input.hospitalName : "병원명미입력");
+      const typeLabel = selectedType === "usage" ? "사용량비례형" : "일반형";
+      const groupLabel = GROUPS[selectedGroup] ? GROUPS[selectedGroup].label : "가군";
+      const lightLabel = input.lightVersionEnabled ? "_라이트버전" : "";
+      return `${hospital}_${typeLabel}_${groupLabel}${lightLabel}.xlsx`;
+    }
+
+    function exportQuoteExcel() {
+      if (!currentResults) { alert("먼저 견적을 계산해 주세요."); return; }
+      const input = readInputs();
+      const baseResult = currentResults[selectedType][selectedGroup];
+      const result = buildQuoteViewData(baseResult, input, selectedType, selectedGroup);
+
+      const now = new Date();
+      const quoteNo = makeQuoteNumber();
+      const quoteDate = `${now.getFullYear()}년 ${now.getMonth() + 1}월 ${now.getDate()}일`;
+      const user = getCurrentUser();
+      const writer = user ? user.name : "-";
+      const hospital = input.hospitalName || "-";
+      const typeLabel = selectedType === "usage" ? "사용량비례형" : "일반형";
+      const groupLabel = GROUPS[selectedGroup] ? GROUPS[selectedGroup].label : "가군";
+      const isUsage = selectedType === "usage";
+      const t = result.totals;
+
+      // ── 시트 행 모델 작성 ──
+      const rows = [];   // { cells:[{c,v,t,s}], ht? }
+      const merges = []; // "A1:H1"
+      const S = (c, text, s) => ({ c, v: text, t: "s", s });
+      const N = (c, num, s) => ({ c, v: Math.round(Number(num) || 0), t: "n", s });
+      const addRow = (cells, ht) => { rows.push({ cells: cells.filter(Boolean), ht }); return rows.length; };
+      const blank = () => addRow([]);
+      // 병합 라벨: 좌상단 셀에 값, 나머지 칸은 같은 스타일 빈칸으로 채워 테두리 유지
+      const mergeLabel = (rIdx, c1, c2, text, labelStyle, fillStyle) => {
+        merges.push(`${xlsxColLetter(c1)}${rIdx}:${xlsxColLetter(c2)}${rIdx}`);
+        const cells = rows[rIdx - 1].cells;
+        cells.push(S(c1, text, labelStyle));
+        for (let c = c1 + 1; c <= c2; c++) cells.push(S(c, "", fillStyle != null ? fillStyle : labelStyle));
+      };
+
+      // 제목
+      addRow([S(1, "견 적 서", 2)], 30);
+      merges.push("A1:H1");
+      blank();
+      // 회사/견적 정보 블록 (A/E=라벨, B/F=값)
+      addRow([S(1, "상 호 명", 10), S(2, "㈜ 대웅제약", 12), S(5, "견적번호", 10), S(6, quoteNo, 12)]);
+      addRow([S(1, "사업자등록번호", 10), S(2, "124-86-01143", 12), S(5, "견적일자", 10), S(6, quoteDate, 12)]);
+      addRow([S(1, "본 사", 10), S(2, "서울시 강남구 봉은사로 114길 12 (삼성동)", 12), S(5, "담 당 자", 10), S(6, writer, 12)]);
+      addRow([S(1, "Tel / Fax", 10), S(2, "02-550-8800 / 02-550-8400", 12), S(5, "수신(도입처)", 10), S(6, hospital, 12)]);
+      blank();
+      // 견적금액
+      addRow([S(1, "견적금액(부가세포함)", 1), S(2, `${numberToKorean(t.total)}원`, 12), N(7, t.total, 11)], 22);
+      blank();
+
+      // 상세 테이블 렌더 헬퍼 (8열: No/항목/설명/단위/수량/단가/금액/비고)
+      const renderDetail = (titleText, detailRows, subtotal, tableId) => {
+        const titleRowIdx = addRow([]);
+        mergeLabel(titleRowIdx, 1, 8, titleText, 13);
+        addRow([S(1, "No", 3), S(2, "항목", 3), S(3, "설명", 3), S(4, "단위", 3), S(5, "수량", 3), S(6, "단가", 3), S(7, "금액", 3), S(8, "비고", 3)], 20);
+        detailRows.forEach((row) => {
+          const desc = String(row.desc == null ? "" : row.desc);
+          const remark = tableId ? resolveRemark(tableId, row) : String(row.remark == null ? "" : row.remark);
+          const lineCount = Math.max(desc.split("\n").length, remark.split("\n").length, 1);
+          const ht = lineCount > 1 ? Math.max(18, lineCount * 15) : undefined;
+          addRow([
+            row.subNo ? S(1, row.subNo, 5) : N(1, row.no, 5),
+            S(2, row.item, 4),
+            S(3, desc, 4),
+            S(4, row.unit, 5),
+            N(5, row.qty, 5),
+            N(6, row.effectiveUnitPrice, 6),
+            N(7, row.amount, 7),
+            S(8, remark, 5)
+          ], ht);
+        });
+        const subIdx = addRow([N(7, subtotal, 9), S(8, "", 8)]);
+        mergeLabel(subIdx, 1, 6, "합 계", 8);
+      };
+
+      renderDetail("1. 시스템 구성", result.systemRows, t.system, "sys");
+      renderDetail("2. 웨어러블 의료기기", result.wearableRows, t.wearable, "wear");
+
+      if (isUsage && Number(t.finance) > 0) {
+        const finTitleIdx = addRow([]);
+        mergeLabel(finTitleIdx, 1, 8, "3. 사용량비례형 판매모델 서버 운용비", 13);
+        const rate = Math.round(Number(result.financeRate || 0) * 1000) / 10;
+        const finIdx = addRow([N(7, t.finance, 7), S(8, "", 4)]);
+        mergeLabel(finIdx, 1, 6, `월 서버 운용비 (기준액의 약 ${rate}%)`, 4);
+      }
+
+      // 합계 요약
+      const sumTitleIdx = addRow([]);
+      mergeLabel(sumTitleIdx, 1, 8, "합계 요약", 13);
+      const sumRow = (label, amount, labelStyle, valStyle) => {
+        const idx = addRow([N(7, amount, valStyle), S(8, "", labelStyle)]);
+        mergeLabel(idx, 1, 6, label, labelStyle);
+      };
+      sumRow("시스템 합계", t.system, 4, 7);
+      sumRow("웨어러블 합계", t.wearable, 4, 7);
+      if (isUsage && Number(t.finance) > 0) sumRow("서버 운용비 합계", t.finance, 4, 7);
+      sumRow("총 견적금액 (부가세포함)", t.total, 8, 9);
+
+      // ── sheetData / mergeCells 직렬화 ──
+      let sheetData = "";
+      rows.forEach((row, i) => {
+        const r = i + 1;
+        const htAttr = row.ht ? ` ht="${row.ht}" customHeight="1"` : "";
+        let cellsXml = "";
+        row.cells.slice().sort((a, b) => a.c - b.c).forEach((cell) => {
+          const ref = xlsxColLetter(cell.c) + r;
+          const sAttr = cell.s != null ? ` s="${cell.s}"` : "";
+          if (cell.t === "s") {
+            cellsXml += `<c r="${ref}"${sAttr} t="inlineStr"><is><t xml:space="preserve">${xlsxEscape(cell.v)}</t></is></c>`;
+          } else {
+            cellsXml += `<c r="${ref}"${sAttr}><v>${cell.v}</v></c>`;
+          }
+        });
+        sheetData += `<row r="${r}"${htAttr}>${cellsXml}</row>`;
+      });
+      const mergeXml = merges.length
+        ? `<mergeCells count="${merges.length}">${merges.map((m) => `<mergeCell ref="${m}"/>`).join("")}</mergeCells>`
+        : "";
+
+      const colsXml =
+        '<cols>' +
+        '<col min="1" max="1" width="6" customWidth="1"/>' +
+        '<col min="2" max="2" width="22" customWidth="1"/>' +
+        '<col min="3" max="3" width="42" customWidth="1"/>' +
+        '<col min="4" max="4" width="6" customWidth="1"/>' +
+        '<col min="5" max="5" width="8" customWidth="1"/>' +
+        '<col min="6" max="6" width="15" customWidth="1"/>' +
+        '<col min="7" max="7" width="16" customWidth="1"/>' +
+        '<col min="8" max="8" width="26" customWidth="1"/>' +
+        '</cols>';
+
+      const sheetXml =
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+        colsXml +
+        `<sheetData>${sheetData}</sheetData>` +
+        mergeXml +
+        '</worksheet>';
+
+      const stylesXml =
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+        '<numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;₩&quot;#,##0"/></numFmts>' +
+        '<fonts count="5">' +
+        '<font><sz val="10"/><name val="맑은 고딕"/></font>' +
+        '<font><b/><sz val="10"/><name val="맑은 고딕"/></font>' +
+        '<font><b/><sz val="16"/><name val="맑은 고딕"/></font>' +
+        '<font><b/><sz val="11"/><name val="맑은 고딕"/></font>' +
+        '<font><b/><sz val="12"/><name val="맑은 고딕"/></font>' +
+        '</fonts>' +
+        '<fills count="4">' +
+        '<fill><patternFill patternType="none"/></fill>' +
+        '<fill><patternFill patternType="gray125"/></fill>' +
+        '<fill><patternFill patternType="solid"><fgColor rgb="FFEFEFEF"/><bgColor indexed="64"/></patternFill></fill>' +
+        '<fill><patternFill patternType="solid"><fgColor rgb="FFF6F6F6"/><bgColor indexed="64"/></patternFill></fill>' +
+        '</fills>' +
+        '<borders count="2">' +
+        '<border><left/><right/><top/><bottom/><diagonal/></border>' +
+        '<border><left style="thin"><color rgb="FFBBBBBB"/></left><right style="thin"><color rgb="FFBBBBBB"/></right><top style="thin"><color rgb="FFBBBBBB"/></top><bottom style="thin"><color rgb="FFBBBBBB"/></bottom><diagonal/></border>' +
+        '</borders>' +
+        '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+        '<cellXfs count="14">' +
+        '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>' +
+        '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>' +
+        '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>' +
+        '<xf numFmtId="0" fontId="3" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>' +
+        '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>' +
+        '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>' +
+        '<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>' +
+        '<xf numFmtId="164" fontId="1" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>' +
+        '<xf numFmtId="0" fontId="1" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>' +
+        '<xf numFmtId="164" fontId="1" fillId="3" borderId="1" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>' +
+        '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>' +
+        '<xf numFmtId="164" fontId="4" fillId="0" borderId="0" xfId="0" applyNumberFormat="1" applyFont="1" applyAlignment="1"><alignment horizontal="right" vertical="center"/></xf>' +
+        '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>' +
+        '<xf numFmtId="0" fontId="3" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center"/></xf>' +
+        '</cellXfs>' +
+        '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
+        '</styleSheet>';
+
+      const contentTypes =
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+        '<Default Extension="xml" ContentType="application/xml"/>' +
+        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+        '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+        '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+        '</Types>';
+      const rootRels =
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+        '</Relationships>';
+      const workbookXml =
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+        '<sheets><sheet name="견적서" sheetId="1" r:id="rId1"/></sheets>' +
+        '</workbook>';
+      const workbookRels =
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+        '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+        '</Relationships>';
+
+      const enc = new TextEncoder();
+      const files = [
+        { name: "[Content_Types].xml", data: enc.encode(contentTypes) },
+        { name: "_rels/.rels", data: enc.encode(rootRels) },
+        { name: "xl/workbook.xml", data: enc.encode(workbookXml) },
+        { name: "xl/_rels/workbook.xml.rels", data: enc.encode(workbookRels) },
+        { name: "xl/styles.xml", data: enc.encode(stylesXml) },
+        { name: "xl/worksheets/sheet1.xml", data: enc.encode(sheetXml) }
+      ];
+
+      try {
+        const zipped = xlsxZip(files);
+        const blob = new Blob([zipped], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        downloadBlob(blob, getQuoteExcelFileName());
+      } catch (error) {
+        console.error(error);
+        alert("엑셀 파일 생성 중 오류가 발생했습니다.\n" + error.message);
+      }
     }
 
     function waitForFrame() {
@@ -4977,6 +5375,28 @@ ${serverDescBody}`,
         .replaceAll("'", "&#039;");
     }
 
+    // ── 비고(remark) 수기입력 ──
+    // 사용자가 견적 표의 비고 칸을 직접 수정하면 행 키별로 저장하고, 재렌더링·PDF·엑셀·저장/불러오기에 반영한다.
+    const manualRemarks = {};
+    function remarkKeyFor(tableId, row) {
+      return tableId + "|" + (row.subNo != null ? String(row.subNo) : String(row.no)) + "|" + (row.item || "") + "|" + (row.desc || "");
+    }
+    function remarkToHtml(text) {
+      return escapeHtml(text == null ? "" : String(text)).replace(/\n/g, "<br>");
+    }
+    function resolveRemark(tableId, row) {
+      const rk = remarkKeyFor(tableId, row);
+      const base = row.remark == null ? "" : String(row.remark);
+      return Object.prototype.hasOwnProperty.call(manualRemarks, rk) ? manualRemarks[rk] : base;
+    }
+    function editableRemarkCell(tableId, row, forceWrap) {
+      const rk = remarkKeyFor(tableId, row);
+      const base = row.remark == null ? "" : String(row.remark);
+      const shown = resolveRemark(tableId, row);
+      const wrap = (forceWrap || shown.indexOf("\n") >= 0) ? " remark-wrap" : "";
+      return `<td class="center remark-edit${wrap}" contenteditable="true" spellcheck="false" data-rk="${escapeHtml(encodeURIComponent(rk))}" data-default="${escapeHtml(encodeURIComponent(base))}" title="클릭하여 비고를 직접 입력할 수 있습니다">${remarkToHtml(shown)}</td>`;
+    }
+
     $("loginForm").addEventListener("submit", (event) => {
       event.preventDefault();
       const id = $("loginId").value.trim();
@@ -4994,7 +5414,23 @@ ${serverDescBody}`,
     $("logoutBtn").addEventListener("click", logout);
     $("resetBtn").addEventListener("click", resetForm);
     $("saveBtn").addEventListener("click", saveEstimate);
+    $("excelBtn").addEventListener("click", exportQuoteExcel);
     $("printBtn").addEventListener("click", saveQuotePdf);
+
+    // 비고 칸 수기입력 저장: 편집 후 포커스가 빠질 때 행 키별로 저장(기본값과 같으면 저장 해제)
+    document.addEventListener("focusout", (e) => {
+      const cell = e.target && e.target.closest ? e.target.closest("td.remark-edit") : null;
+      if (!cell) return;
+      const rk = decodeURIComponent(cell.getAttribute("data-rk") || "");
+      const def = decodeURIComponent(cell.getAttribute("data-default") || "");
+      let raw = cell.innerText;
+      if (raw == null) raw = cell.textContent;
+      let text = (raw || "").replace(/\u00a0/g, " ").replace(/\r/g, "");
+      text = text.split("\n").map((s) => s.replace(/[ \t]+$/, "")).join("\n").replace(/\n{3,}/g, "\n\n").replace(/^\n+|\n+$/g, "");
+      if (!rk) return;
+      if (text === def) { delete manualRemarks[rk]; }
+      else { manualRemarks[rk] = text; }
+    });
 
     /* ===== CART ON 별도 견적서 모달 ===== */
     (function setupCartOnModal() {
