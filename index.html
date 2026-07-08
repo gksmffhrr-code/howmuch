@@ -2912,6 +2912,69 @@
       outline: none !important;
     }
 
+    /* 저장한 견적 검색창 */
+    .history-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .history-head #historySearch {
+      flex: 1 1 220px;
+      min-width: 180px;
+      padding: 7px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .history-head #historySearch:focus {
+      outline: none;
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+    }
+
+    /* 8. 기타 항목 — 견적서 표 안에서 직접 입력 */
+    .sheet-table tr.system-custom-row td { background: #fffdf5; }
+    .sheet-table td.custom-edit {
+      cursor: text;
+      min-width: 40px;
+    }
+    .sheet-table td.custom-edit:focus {
+      outline: 2px solid #a78bfa;
+      outline-offset: -2px;
+      background: #f5f3ff;
+    }
+    .sheet-table td.custom-edit:empty::before {
+      content: attr(data-ph);
+      color: #cbd5e1;
+    }
+    .sheet-table td.custom-num { text-align: right; }
+    .sheet-table td.custom-no { position: relative; white-space: nowrap; }
+    .cr-del-inline {
+      margin-left: 4px;
+      border: 1px solid #fecaca;
+      background: #fef2f2;
+      color: #b91c1c;
+      border-radius: 50%;
+      width: 18px;
+      height: 18px;
+      line-height: 1;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 0;
+      vertical-align: middle;
+    }
+    .cr-del-inline:hover { background: #fee2e2; }
+    /* PDF 출력 시 편집 강조/삭제버튼 숨김 */
+    .pdf-exporting .sheet-table td.custom-edit,
+    body.pdf-exporting .sheet-table td.custom-edit {
+      outline: none !important;
+      background: transparent !important;
+    }
+    .pdf-exporting .sheet-table td.custom-edit:empty::before,
+    body.pdf-exporting .sheet-table td.custom-edit:empty::before { content: ""; }
+
   </style>
 </head>
 <body>
@@ -3137,6 +3200,7 @@
               <input id="serviceConsole10Qty" class="server-console-qty" type="number" min="0" placeholder="입력" />
             </div>
           </div>
+
           <input id="memo" type="hidden" value="" />
 
           <div class="actions">
@@ -3188,6 +3252,7 @@
               </select>
             </div>
             <div class="right">
+              <button type="button" class="small" id="addCustomRowBtn" style="background:#6d28d9;">＋ 기타 항목(8번) 추가</button>
               <label class="toggle-inline" title="활성화하면 견적서 표의 단가를 수기로 조정할 수 있습니다.">
                 <input type="checkbox" id="manualPriceEnabledToggle" />
                 수기 단가 조정
@@ -3272,7 +3337,10 @@
 
 
         <section class="panel history-panel no-print">
-          <h3>저장한 견적</h3>
+          <div class="history-head">
+            <h3 style="margin:0;">저장한 견적</h3>
+            <input id="historySearch" type="search" placeholder="도입처·작성자·유형·날짜·금액 검색" autocomplete="off" />
+          </div>
           <div style="overflow:auto;">
             <table class="history-table" id="historyTable"></table>
           </div>
@@ -3466,10 +3534,12 @@
       serviceConsole20Qty: "",
       serviceConsole10Enabled: false,
       serviceConsole10Qty: "",
-      memo: ""
+      memo: "",
+      customRows: []
     };
 
     let currentResults = null;
+    let customRows = [];
     let selectedType = "normal";
     let selectedGroup = "A";
     let manualPriceEnabled = false;
@@ -3655,7 +3725,8 @@
         otherCostEnabled: checked("constructionEnabled") && checked("otherCostEnabled"),
         ackEnabled: checked("serverEnabled") && checked("ackEnabled"),
         serverConsoleSelections: checked("serverEnabled") ? readServerConsoleSelections() : [],
-        memo: $("memo") ? $("memo").value.trim() : ""
+        memo: $("memo") ? $("memo").value.trim() : "",
+        customRows: customRows.map((c) => Object.assign({}, c))
       };
     }
 
@@ -3721,8 +3792,6 @@
         const swQty = input.actualDevices;
         rows.push(line("Central Monitoring System", "S/W", "병동 전체 모니터링 S/W", swQty, price(COMMON.dashboard.sw, pkg)));
         rows.push(line("Central Monitoring System", `${input.monitorType} Inch Monitor`, "Central Monitoring Monitor", input.monitorQty, COMMON.dashboard.monitor[input.monitorType]));
-        rows.push(line("Central Monitoring System", "PC", "Computer 데스크톱", input.centralCount, COMMON.dashboard.pcDesktop));
-        rows.push(line("Central Monitoring System", "Keyboard, Mouse", "Keyboard, Mouse", input.centralCount, 0));
       }
 
       if (input.managerEnabled) {
@@ -4098,6 +4167,40 @@ ${serverDescBody}`,
       ];
 
       const systemRows = systemRowsRaw.map((row) => applyManualPriceToRow(row, type, groupKey));
+
+      // 8. 기타 항목 (직접 입력) — 항목/설명/단위/수량/단가/금액/비고 모두 수기, 입력한 금액이 그대로 합계에 반영
+      const parseNum = (v) => {
+        const s = String(v == null ? "" : v).replace(/[^0-9.\-]/g, "");
+        if (s === "" || s === "-" || s === ".") return null;
+        const n = Number(s);
+        return Number.isFinite(n) ? n : null;
+      };
+      const customList = Array.isArray(input.customRows) ? input.customRows : [];
+      customList.forEach((c, i) => {
+        const fields = ["item", "desc", "unit", "qty", "unitPrice", "amount", "remark"];
+        const isEmpty = fields.every((k) => String(c[k] == null ? "" : c[k]).trim() === "");
+        const unitPriceNum = parseNum(c.unitPrice);
+        const amountNum = parseNum(c.amount);
+        systemRows.push({
+          section: "system",
+          no: 8,
+          subNo: customList.length > 1 ? `8-${i + 1}` : null,
+          isCustom: true,
+          ci: i,
+          isEmpty,
+          item: String(c.item == null ? "" : c.item),
+          desc: String(c.desc == null ? "" : c.desc),
+          unit: String(c.unit == null ? "" : c.unit),
+          qtyText: String(c.qty == null ? "" : c.qty).trim(),
+          unitPriceNum,
+          unitPriceText: String(c.unitPrice == null ? "" : c.unitPrice).trim(),
+          amountNum,
+          amountText: String(c.amount == null ? "" : c.amount).trim(),
+          amount: amountNum == null ? 0 : amountNum,
+          remark: String(c.remark == null ? "" : c.remark)
+        });
+      });
+
       const wearableRows = wearableRowsRaw.map((row) => applyManualPriceToRow(row, type, groupKey));
       const systemTotal = Math.round(systemRows.reduce((acc, row) => acc + Number(row.amount || 0), 0));
       const wearableTotal = Math.round(wearableRows.reduce((acc, row) => acc + Number(row.amount || 0), 0));
@@ -4329,7 +4432,18 @@ ${serverDescBody}`,
           </tr>
         </thead>
         <tbody>
-          ${result.systemRows.map((row) => `
+          ${result.systemRows.map((row) => row.isCustom ? `
+            <tr class="system-custom-row">
+              <td class="center custom-no"><strong>${escapeHtml(String(row.subNo || row.no))}</strong><button type="button" class="cr-del-inline no-print" data-ci="${row.ci}" title="이 기타 항목 삭제">×</button></td>
+              <td class="center custom-edit" contenteditable="true" spellcheck="false" data-ci="${row.ci}" data-cf="item" data-ph="항목">${escapeHtml(row.item)}</td>
+              <td class="custom-edit" contenteditable="true" spellcheck="false" data-ci="${row.ci}" data-cf="desc" data-ph="설명">${escapeHtml(row.desc)}</td>
+              <td class="center custom-edit" contenteditable="true" spellcheck="false" data-ci="${row.ci}" data-cf="unit" data-ph="단위">${escapeHtml(row.unit)}</td>
+              <td class="center custom-edit" contenteditable="true" spellcheck="false" data-ci="${row.ci}" data-cf="qty" data-ph="수량">${escapeHtml(row.qtyText || "")}</td>
+              <td class="num custom-edit custom-num" contenteditable="true" spellcheck="false" data-ci="${row.ci}" data-cf="unitPrice" data-ph="단가">${row.unitPriceNum != null ? moneyCell(row.unitPriceNum) : (row.unitPriceText ? escapeHtml(row.unitPriceText) : "")}</td>
+              <td class="num custom-edit custom-num" contenteditable="true" spellcheck="false" data-ci="${row.ci}" data-cf="amount" data-ph="금액">${row.amountNum != null ? `<strong>${moneyCell(row.amountNum)}</strong>` : (row.amountText ? escapeHtml(row.amountText) : "")}</td>
+              <td class="center custom-edit${(row.remark || "").includes("\n") ? " remark-wrap" : ""}" contenteditable="true" spellcheck="false" data-ci="${row.ci}" data-cf="remark" data-ph="비고">${remarkHtml(row.remark || "")}</td>
+            </tr>
+          ` : `
             <tr class="${row.manualOverrideActive ? "manual-adjusted-row" : ""} ${row.isSubRow ? "system-subrow" : ""}">
               <td class="center"><strong>${escapeHtml(String(row.subNo || row.no))}</strong></td>
               <td class="center"><strong>${escapeHtml(row.item)}</strong></td>
@@ -4539,6 +4653,33 @@ ${serverDescBody}`,
       $("otherCostEnabled").disabled = !checked("constructionEnabled");
     }
 
+    // ── 8. 기타 항목 (견적서 직접 입력) ──
+    function addCustomRow() {
+      customRows.push({ item: "", desc: "", unit: "", qty: "", unitPrice: "", amount: "", remark: "" });
+      renderAll();
+    }
+    function deleteCustomRow(ci) {
+      if (ci >= 0 && ci < customRows.length) {
+        customRows.splice(ci, 1);
+        renderAll();
+      }
+    }
+    function placeCaretEnd(el) {
+      try {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        range.collapse(false);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } catch (e) {}
+    }
+    function readEditableText(cell) {
+      let raw = cell.innerText;
+      if (raw == null) raw = cell.textContent;
+      return (raw || "").replace(/\u00a0/g, " ").replace(/\r/g, "").replace(/\n+/g, " ").trim();
+    }
+
     function setInputs(input) {
       const data = Object.assign({}, DEFAULT_INPUTS, input || {});
       // 비고 수기입력 복원: 저장 스냅샷에 있으면 그대로 복원하고, 없으면(초기화 등) 모두 비운다.
@@ -4568,6 +4709,16 @@ ${serverDescBody}`,
           if (qtyEl) qtyEl.value = (sel && sel.enabled && Number(sel.qty) > 0) ? sel.qty : "";
         });
       }
+      // 8. 기타 항목(견적서 직접 입력) 복원 (초기화 시 빈 배열 → 모두 제거)
+      customRows = Array.isArray(data.customRows) ? data.customRows.map((c) => ({
+        item: String(c.item == null ? "" : c.item),
+        desc: String(c.desc == null ? "" : c.desc),
+        unit: String(c.unit == null ? "" : c.unit),
+        qty: String(c.qty == null ? "" : c.qty),
+        unitPrice: String(c.unitPrice == null ? "" : c.unitPrice),
+        amount: String(c.amount == null ? "" : c.amount),
+        remark: String(c.remark == null ? "" : c.remark)
+      })) : [];
       if ($("usageSwQty") && $("actualDevices")) $("usageSwQty").value = $("actualDevices").value || "";
       syncDependencies();
     }
@@ -4612,7 +4763,12 @@ ${serverDescBody}`,
         system_amount: num(result.totals.system),
         wearable_amount: num(result.totals.wearable),
         finance_amount: num(result.totals.finance),
-        input_snapshot: Object.assign({}, input, { manualRemarks: Object.assign({}, manualRemarks) }),
+        input_snapshot: Object.assign({}, input, {
+          manualRemarks: Object.assign({}, manualRemarks),
+          customRows: (Array.isArray(input.customRows) ? input.customRows : []).filter((c) =>
+            Object.keys(c).some((k) => String(c[k] == null ? "" : c[k]).trim() !== "")
+          )
+        }),
         manual_price: {
           enabled: manualPriceEnabled,
           scope: quoteScopeKey(),
@@ -4648,32 +4804,68 @@ ${serverDescBody}`,
       }
     }
 
+    let historyRecords = [];
+
+    function historyRowText(row) {
+      const groupLabel = (g) => (GROUPS[g] ? GROUPS[g].label : (g || "-"));
+      let dateStr = "";
+      try { dateStr = new Date(row.created_at).toLocaleString("ko-KR"); } catch (e) { dateStr = ""; }
+      return [
+        row.hospital_name || "",
+        row.quote_type === "usage" ? "사용량비례형" : "일반형",
+        groupLabel(row.quote_group),
+        row.writer_name || "",
+        row.writer_id || "",
+        dateStr,
+        String(row.total_amount || "")
+      ].join(" ").toLowerCase();
+    }
+
     async function renderHistory() {
       const table = $("historyTable");
       if (!table) return;
       table.innerHTML = `<tbody><tr><td class="center muted">견적 내역을 불러오는 중...</td></tr></tbody>`;
 
-      let rows = [];
       try {
         const res = await fetch(`${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}?select=*&order=created_at.desc&limit=300`, {
           headers: supabaseHeaders()
         });
         if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
-        rows = await res.json();
+        historyRecords = await res.json();
       } catch (error) {
         console.error(error);
+        historyRecords = [];
         table.innerHTML = `<tbody><tr><td class="center danger-text">견적 내역을 불러오지 못했습니다. (${escapeHtml(error.message)})</td></tr></tbody>`;
         return;
       }
+      renderHistoryRows();
+    }
 
-      if (!Array.isArray(rows) || rows.length === 0) {
+    function renderHistoryRows() {
+      const table = $("historyTable");
+      if (!table) return;
+
+      const q = ($("historySearch") ? $("historySearch").value : "").trim().toLowerCase();
+      if (!q) {
+        table.innerHTML = `<tbody><tr><td class="center muted">검색어를 입력하면 저장한 견적이 표시됩니다.</td></tr></tbody>`;
+        return;
+      }
+      if (!Array.isArray(historyRecords) || historyRecords.length === 0) {
         table.innerHTML = `<tbody><tr><td class="center muted">저장된 견적이 없습니다.</td></tr></tbody>`;
         return;
       }
+      const rows = historyRecords.filter((row) => historyRowText(row).includes(q));
 
       const groupLabel = (g) => (GROUPS[g] ? GROUPS[g].label : (g || "-"));
+      const head = `<thead><tr><th>저장일</th><th>도입처</th><th>유형</th><th>금액</th><th>작성자</th><th>작업</th></tr></thead>`;
+
+      if (rows.length === 0) {
+        table.innerHTML = `${head}<tbody><tr><td class="center muted" colspan="6">검색 결과가 없습니다.</td></tr></tbody>`;
+        return;
+      }
+
       table.innerHTML = `
-        <thead><tr><th>저장일</th><th>도입처</th><th>유형</th><th>금액</th><th>작성자</th><th>작업</th></tr></thead>
+        ${head}
         <tbody>
           ${rows.map((row) => `
             <tr>
@@ -4693,7 +4885,7 @@ ${serverDescBody}`,
 
       table.querySelectorAll("[data-load]").forEach((btn) => {
         btn.addEventListener("click", () => {
-          const record = rows.find((row) => String(row.id) === btn.dataset.load);
+          const record = historyRecords.find((row) => String(row.id) === btn.dataset.load);
           if (!record) return;
           selectedType = record.quote_type === "usage" ? "usage" : "normal";
           selectedGroup = (record.quote_group && GROUPS[record.quote_group]) ? record.quote_group : "A";
@@ -4902,6 +5094,24 @@ ${serverDescBody}`,
         mergeLabel(titleRowIdx, 1, 8, titleText, 13);
         addRow([S(1, "No", 3), S(2, "항목", 3), S(3, "설명", 3), S(4, "단위", 3), S(5, "수량", 3), S(6, "단가", 3), S(7, "금액", 3), S(8, "비고", 3)], 20);
         detailRows.forEach((row) => {
+          if (row.isCustom) {
+            if (row.isEmpty) return;
+            const cdesc = String(row.desc == null ? "" : row.desc);
+            const cremark = String(row.remark == null ? "" : row.remark);
+            const clc = Math.max(cdesc.split("\n").length, cremark.split("\n").length, 1);
+            const cht = clc > 1 ? Math.max(18, clc * 15) : undefined;
+            addRow([
+              row.subNo ? S(1, row.subNo, 5) : N(1, row.no, 5),
+              S(2, row.item, 4),
+              S(3, cdesc, 4),
+              S(4, row.unit, 5),
+              S(5, row.qtyText || "", 5),
+              row.unitPriceNum != null ? N(6, row.unitPriceNum, 6) : S(6, row.unitPriceText || "", 5),
+              row.amountNum != null ? N(7, row.amountNum, 7) : S(7, row.amountText || "", 5),
+              S(8, cremark, 5)
+            ], cht);
+            return;
+          }
           const desc = String(row.desc == null ? "" : row.desc);
           const remark = tableId ? resolveRemark(tableId, row) : String(row.remark == null ? "" : row.remark);
           const lineCount = Math.max(desc.split("\n").length, remark.split("\n").length, 1);
@@ -5422,6 +5632,49 @@ ${serverDescBody}`,
     $("saveBtn").addEventListener("click", saveEstimate);
     $("excelBtn").addEventListener("click", exportQuoteExcel);
     $("printBtn").addEventListener("click", saveQuotePdf);
+    if ($("historySearch")) $("historySearch").addEventListener("input", renderHistoryRows);
+    if ($("addCustomRowBtn")) $("addCustomRowBtn").addEventListener("click", addCustomRow);
+
+    // 기타(8번) 항목 삭제 버튼 (견적서 내, 재렌더링 대비 이벤트 위임)
+    document.addEventListener("click", (e) => {
+      const btn = e.target && e.target.closest ? e.target.closest(".cr-del-inline") : null;
+      if (!btn) return;
+      e.preventDefault();
+      deleteCustomRow(Number(btn.getAttribute("data-ci")));
+    });
+
+    // 기타(8번) 셀 편집:
+    //  - 숫자 셀(단가/금액)은 포커스 시 원본 숫자로 표시 → 입력 → 포커스 아웃 시 ₩ 서식·합계 갱신을 위해 재렌더
+    //  - 문자 셀(항목/설명/단위/수량/비고)은 입력 즉시 상태 반영(합계에 영향 없으므로 재렌더 불필요)
+    document.addEventListener("focusin", (e) => {
+      const cell = e.target && e.target.closest ? e.target.closest("td.custom-num") : null;
+      if (!cell) return;
+      const ci = Number(cell.getAttribute("data-ci"));
+      const cf = cell.getAttribute("data-cf");
+      if (!Number.isInteger(ci) || !cf || !customRows[ci]) return;
+      cell.textContent = String(customRows[ci][cf] == null ? "" : customRows[ci][cf]);
+      placeCaretEnd(cell);
+    });
+    document.addEventListener("input", (e) => {
+      const cell = e.target && e.target.closest ? e.target.closest("td.custom-edit") : null;
+      if (!cell) return;
+      const ci = Number(cell.getAttribute("data-ci"));
+      const cf = cell.getAttribute("data-cf");
+      if (!Number.isInteger(ci) || !cf || !customRows[ci]) return;
+      let text = readEditableText(cell);
+      if (cell.classList.contains("custom-num")) text = text.replace(/[^\d-]/g, "");
+      customRows[ci][cf] = text;
+    });
+    document.addEventListener("focusout", (e) => {
+      const cell = e.target && e.target.closest ? e.target.closest("td.custom-num") : null;
+      if (!cell) return;
+      const ci = Number(cell.getAttribute("data-ci"));
+      const cf = cell.getAttribute("data-cf");
+      if (Number.isInteger(ci) && cf && customRows[ci]) {
+        customRows[ci][cf] = readEditableText(cell).replace(/[^\d-]/g, "");
+      }
+      renderAll();
+    });
 
     // 비고 칸 수기입력 저장: 편집 후 포커스가 빠질 때 행 키별로 저장(기본값과 같으면 저장 해제)
     document.addEventListener("focusout", (e) => {
