@@ -653,6 +653,11 @@
       content: "* ";
     }
 
+    .quote-footer-note div.draft-quote-note {
+      color: #b91c1c;
+      font-weight: 700;
+    }
+
     @media (max-width: 720px) {
       .quote-meta-grid {
         grid-template-columns: 1fr;
@@ -3136,6 +3141,9 @@
 
           <div class="section-title">옵션</div>
           <div class="check-grid">
+            <label class="check" style="grid-column: 1 / -1; background:#fef2f2; border-color:#fca5a5; color:#b91c1c; font-weight:700;">
+              <input type="checkbox" id="draftQuoteEnabled" /> 가견적 활성화 (실측 전 개략 견적 · 견적서에 '계약 불가' 문구 표시 · 파일명에 '가견적' 표기)
+            </label>
             <label class="check" style="grid-column: 1 / -1; background:#fff7ed; border-color:#fdba74; color:#9a3412;">
               <input type="checkbox" id="lightVersionEnabled" /> thynC 라이트버전 (웨어러블 3종 단가 인하 · 보증조건 변경)
             </label>
@@ -3331,6 +3339,7 @@
               <div>시스템의 설치는 도입처와 협의에 따라 변경될 수 있습니다.</div>
               <div>계약 종료 이후 유지보수 계약 비용은 도입처와 협의에 따라 변경될 수 있습니다.</div>
               <div>견적서 유효기간: 발행일로부터 3개월</div>
+              <div id="draftQuoteNote" class="draft-quote-note hidden">본 견적서는 가견적으로 정확한 실측을 통한 견적 산출이 필요하며, 가견적으로는 계약이 불가함</div>
             </div>
           </div>
         </section>
@@ -3506,6 +3515,7 @@
       usageSwQty: "",
       wearableEnabled: true,
       lightVersionEnabled: false,
+      draftQuoteEnabled: false,
       ecgEnabled: true,
       spo2Enabled: true,
       spo2SensorEnabled: true,
@@ -3708,6 +3718,7 @@
         usageSwQty: number("actualDevices"),
         wearableEnabled: checked("wearableEnabled"),
         lightVersionEnabled: checked("lightVersionEnabled"),
+        draftQuoteEnabled: checked("draftQuoteEnabled"),
         ecgEnabled: checked("wearableEnabled") && checked("ecgEnabled"),
         spo2Enabled: checked("wearableEnabled") && checked("spo2Enabled"),
         spo2SensorEnabled: checked("wearableEnabled") && checked("spo2Enabled") && checked("spo2SensorEnabled"),
@@ -4314,6 +4325,7 @@ ${serverDescBody}`,
       const user = getCurrentUser();
       const baseResult = currentResults[selectedType][selectedGroup];
       const input = currentResults.input;
+      if ($("draftQuoteNote")) $("draftQuoteNote").classList.toggle("hidden", !input.draftQuoteEnabled);
       const result = buildQuoteViewData(baseResult, input, selectedType, selectedGroup);
       const quoteNo = makeQuoteNumber();
       const now = new Date();
@@ -4936,7 +4948,8 @@ ${serverDescBody}`,
       const typeLabel = selectedType === "usage" ? "사용량비례형" : "일반형";
       const groupLabel = GROUPS[selectedGroup] ? GROUPS[selectedGroup].label : "가군";
       const lightLabel = input.lightVersionEnabled ? "_라이트버전" : "";
-      return `${hospital}_${typeLabel}_${groupLabel}${lightLabel}.pdf`;
+      const draftLabel = input.draftQuoteEnabled ? "_가견적" : "";
+      return `${hospital}_${typeLabel}_${groupLabel}${draftLabel}${lightLabel}.pdf`;
     }
 
     // ── 견적서 엑셀(.xlsx) 내보내기: 외부 라이브러리 없이 OOXML + ZIP을 직접 생성 ──
@@ -5039,7 +5052,8 @@ ${serverDescBody}`,
       const typeLabel = selectedType === "usage" ? "사용량비례형" : "일반형";
       const groupLabel = GROUPS[selectedGroup] ? GROUPS[selectedGroup].label : "가군";
       const lightLabel = input.lightVersionEnabled ? "_라이트버전" : "";
-      return `${hospital}_${typeLabel}_${groupLabel}${lightLabel}.xlsx`;
+      const draftLabel = input.draftQuoteEnabled ? "_가견적" : "";
+      return `${hospital}_${typeLabel}_${groupLabel}${draftLabel}${lightLabel}.xlsx`;
     }
 
     function exportQuoteExcel() {
