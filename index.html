@@ -4398,10 +4398,25 @@ ${serverDescBody}`,
       if ($("draftQuoteNote")) $("draftQuoteNote").classList.toggle("hidden", !input.draftQuoteEnabled);
       {
         const kind = selectedType === "usage" ? "사용량비례형" : "일시납구축형";
+        const lightOn = !!input.lightVersionEnabled;
         const nBtn = $("contractNormalBtn");
         const lBtn = $("contractLightBtn");
-        if (nBtn) nBtn.title = `${kind} 일반버전 계약서(Word) 다운로드 · 현재 견적 기준`;
-        if (lBtn) lBtn.title = `${kind} 라이트버전 계약서(Word) 다운로드 · 현재 견적 기준`;
+        if (nBtn) {
+          nBtn.disabled = lightOn;
+          nBtn.style.opacity = lightOn ? "0.45" : "";
+          nBtn.style.cursor = lightOn ? "not-allowed" : "";
+          nBtn.title = lightOn
+            ? "라이트버전이 켜져 있어 일반버전 계약서는 비활성화됩니다. (라이트버전 체크 해제 시 사용)"
+            : `${kind} 일반버전 계약서(Word) 다운로드 · 현재 견적 기준`;
+        }
+        if (lBtn) {
+          lBtn.disabled = !lightOn;
+          lBtn.style.opacity = !lightOn ? "0.45" : "";
+          lBtn.style.cursor = !lightOn ? "not-allowed" : "";
+          lBtn.title = !lightOn
+            ? "라이트버전이 꺼져 있어 라이트버전 계약서는 비활성화됩니다. (라이트버전 체크 시 사용)"
+            : `${kind} 라이트버전 계약서(Word) 다운로드 · 현재 견적 기준`;
+        }
       }
       const result = buildQuoteViewData(baseResult, input, selectedType, selectedGroup);
       const quoteNo = makeQuoteNumber();
@@ -5986,6 +6001,13 @@ ${serverDescBody}`,
       if (!b64) { alert("계약서 템플릿을 찾을 수 없습니다."); return; }
 
       const input = currentResults.input;
+      const wantLight = /_light$/.test(templateKey);
+      if (wantLight !== !!input.lightVersionEnabled) {
+        alert(input.lightVersionEnabled
+          ? "현재 라이트버전이 켜져 있어 라이트버전 계약서만 생성할 수 있습니다."
+          : "현재 일반버전이므로 일반버전 계약서만 생성할 수 있습니다.\n라이트버전 계약서가 필요하면 '라이트버전' 옵션을 체크해 주세요.");
+        return;
+      }
       const hospital = input.hospitalName && input.hospitalName !== "-" ? input.hospitalName : "병원명미입력";
       const bedsLabel = contractBedsLabel(input);
 
