@@ -3379,7 +3379,8 @@
               </select>
             </div>
             <div class="right">
-              <button type="button" class="small" id="addCustomRowBtn" style="background:#6d28d9;">＋ 기타 항목(8번) 추가</button>
+              <button type="button" class="small" id="addCustomRowBtn" style="background:#6d28d9;">＋ 시스템 기타(8번) 추가</button>
+              <button type="button" class="small" id="addWearableCustomRowBtn" style="background:#9d174d;">＋ 웨어러블 항목 추가</button>
               <button type="button" class="small" id="addFooterNoteBtn" style="background:#0f766e;">＋ 비고 추가</button>
               <label class="toggle-inline" title="비고란 입력 항목을 1열 또는 2열로 배치합니다.">
                 비고
@@ -3388,9 +3389,13 @@
                   <option value="2">2열</option>
                 </select>
               </label>
-              <label class="toggle-inline" title="활성화하면 견적서 표의 단가를 수기로 조정할 수 있습니다.">
+              <label class="toggle-inline" title="활성화하면 견적서 표의 단가를 수기로 조정할 수 있습니다. (금액 = 수량 × 단가)">
                 <input type="checkbox" id="manualPriceEnabledToggle" />
                 수기 단가 조정
+              </label>
+              <label class="toggle-inline" title="활성화하면 견적서 표의 금액을 단가와 무관하게 직접 입력할 수 있습니다. 입력한 금액이 그대로 합계에 반영됩니다.">
+                <input type="checkbox" id="manualAmountEnabledToggle" />
+                수기 금액 조정
               </label>
               <button type="button" class="small ghost" id="clearManualPricesBtn" disabled>수기값 초기화</button>
               <label class="toggle-inline" title="체크하면 최종 견적서에 생략된 세부 산출내역을 표시합니다.">
@@ -3690,18 +3695,23 @@
       serviceConsole10Qty: "",
       memo: "",
       customRows: [],
+      wearableCustomRows: [],
       footerNotes: [],
       footerNoteColumns: 1
     };
 
     let currentResults = null;
     let customRows = [];
+    let wearableCustomRows = [];
     let footerNotes = [];
     let footerNoteColumns = 1;
     let selectedType = "normal";
     let selectedGroup = "A";
     let manualPriceEnabled = false;
     let manualPriceOverrides = {};
+    // 수기 금액 조정: 단가와 독립적으로 금액을 직접 입력 (scope별 { "section::item": amount })
+    let manualAmountEnabled = false;
+    let manualAmountOverrides = {};
 
     const $ = (id) => document.getElementById(id);
     const money = (value) => `${new Intl.NumberFormat("ko-KR").format(Math.round(value || 0))}원`;
@@ -3886,6 +3896,7 @@
         serverConsoleSelections: checked("serverEnabled") ? readServerConsoleSelections() : [],
         memo: $("memo") ? $("memo").value.trim() : "",
         customRows: customRows.map((c) => Object.assign({}, c)),
+        wearableCustomRows: wearableCustomRows.map((c) => Object.assign({}, c)),
         footerNotes: footerNotes.slice(),
         footerNoteColumns: footerNoteColumns === 2 ? 2 : 1
       };
@@ -4114,15 +4125,41 @@
 
     function clearManualPriceOverridesForCurrentScope() {
       delete manualPriceOverrides[quoteScopeKey()];
+      delete manualAmountOverrides[quoteScopeKey()];
     }
 
     function manualScopeHasOverrides(type = selectedType, groupKey = selectedGroup) {
       const scope = manualPriceOverrides[quoteScopeKey(type, groupKey)] || {};
-      return Object.keys(scope).length > 0;
+      const aScope = manualAmountOverrides[quoteScopeKey(type, groupKey)] || {};
+      return Object.keys(scope).length > 0 || Object.keys(aScope).length > 0;
+    }
+
+    // ── 수기 금액 조정 (단가와 독립) ──
+    function getManualAmountScope(type = selectedType, groupKey = selectedGroup) {
+      const scopeKey = quoteScopeKey(type, groupKey);
+      if (!manualAmountOverrides[scopeKey]) manualAmountOverrides[scopeKey] = {};
+      return manualAmountOverrides[scopeKey];
+    }
+    function hasManualAmountOverride(section, item, type = selectedType, groupKey = selectedGroup) {
+      const scope = manualAmountOverrides[quoteScopeKey(type, groupKey)] || {};
+      return Object.prototype.hasOwnProperty.call(scope, quotePriceKey(section, item));
+    }
+    function getManualAmountOverride(section, item, type = selectedType, groupKey = selectedGroup) {
+      const scope = manualAmountOverrides[quoteScopeKey(type, groupKey)] || {};
+      const key = quotePriceKey(section, item);
+      return Object.prototype.hasOwnProperty.call(scope, key) ? Number(scope[key] || 0) : null;
+    }
+    function setManualAmountOverride(section, item, value) {
+      const scope = getManualAmountScope();
+      const key = quotePriceKey(section, item);
+      const parsed = parseManualPrice(value);
+      if (parsed === null) delete scope[key];
+      else scope[key] = parsed;
     }
 
     function updateManualPriceControls() {
       if ($("manualPriceEnabledToggle")) $("manualPriceEnabledToggle").checked = manualPriceEnabled;
+      if ($("manualAmountEnabledToggle")) $("manualAmountEnabledToggle").checked = manualAmountEnabled;
       if ($("clearManualPricesBtn")) $("clearManualPricesBtn").disabled = !manualScopeHasOverrides();
     }
 
@@ -4138,15 +4175,23 @@
       const hasOverride = manualActive && hasManualPriceOverride(row.section, priceItem, type, groupKey);
       const overridePrice = hasOverride ? getManualPriceOverride(row.section, priceItem, type, groupKey) : null;
       const effectiveUnitPrice = hasOverride ? overridePrice : Number(row.defaultUnitPrice || 0);
-      const adjustedAmount = hasOverride
+      let adjustedAmount = hasOverride
         ? Math.round(Number(row.qty || 0) * Number(effectiveUnitPrice || 0))
         : Math.round(Number(row.originalAmount || 0));
+
+      // 수기 금액 조정: 활성화 + 오버라이드 존재 시 단가 계산과 무관하게 입력 금액을 그대로 사용
+      const amountActive = manualAmountEnabled && row.manualEditable !== false;
+      const hasAmountOverride = amountActive && hasManualAmountOverride(row.section, priceItem, type, groupKey);
+      if (hasAmountOverride) {
+        adjustedAmount = Math.round(Number(getManualAmountOverride(row.section, priceItem, type, groupKey) || 0));
+      }
 
       return {
         ...row,
         effectiveUnitPrice,
         amount: adjustedAmount,
-        manualOverrideActive: hasOverride
+        manualOverrideActive: hasOverride,
+        manualAmountActive: hasAmountOverride
       };
     }
 
@@ -4337,17 +4382,19 @@ ${serverDescBody}`,
         const n = Number(s);
         return Number.isFinite(n) ? n : null;
       };
-      const customList = Array.isArray(input.customRows) ? input.customRows : [];
-      customList.forEach((c, i) => {
+      // 기타(수기) 행 생성 공용: section=system(8번) / wearable(기존 행 다음 번호)
+      const buildCustomRow = (c, i, list, section, baseNo, fixedNo) => {
         const fields = ["item", "desc", "unit", "qty", "unitPrice", "amount", "remark"];
         const isEmpty = fields.every((k) => String(c[k] == null ? "" : c[k]).trim() === "");
         const unitPriceNum = parseNum(c.unitPrice);
         const amountNum = parseNum(c.amount);
-        systemRows.push({
-          section: "system",
-          no: 8,
-          subNo: customList.length > 1 ? `8-${i + 1}` : null,
+        const no = fixedNo != null ? fixedNo : baseNo + i;
+        return {
+          section,
+          no,
+          subNo: fixedNo != null && list.length > 1 ? `${fixedNo}-${i + 1}` : null,
           isCustom: true,
+          cs: section,
           ci: i,
           isEmpty,
           item: String(c.item == null ? "" : c.item),
@@ -4360,10 +4407,15 @@ ${serverDescBody}`,
           amountText: String(c.amount == null ? "" : c.amount).trim(),
           amount: amountNum == null ? 0 : amountNum,
           remark: String(c.remark == null ? "" : c.remark)
-        });
-      });
+        };
+      };
+      const customList = Array.isArray(input.customRows) ? input.customRows : [];
+      customList.forEach((c, i) => systemRows.push(buildCustomRow(c, i, customList, "system", 8, 8)));
 
       const wearableRows = wearableRowsRaw.map((row) => applyManualPriceToRow(row, type, groupKey));
+      // 웨어러블 기타 행: 기존 3행 다음 번호(4, 5, ...)로 이어서 추가
+      const wearableCustomList = Array.isArray(input.wearableCustomRows) ? input.wearableCustomRows : [];
+      wearableCustomList.forEach((c, i) => wearableRows.push(buildCustomRow(c, i, wearableCustomList, "wearable", wearableRowsRaw.length + 1, null)));
       const systemTotal = Math.round(systemRows.reduce((acc, row) => acc + Number(row.amount || 0), 0));
       const wearableTotal = Math.round(wearableRows.reduce((acc, row) => acc + Number(row.amount || 0), 0));
       const baseTotal = systemTotal + wearableTotal;
@@ -4397,7 +4449,7 @@ ${serverDescBody}`,
           const result = currentResults[type][groupKey];
           const view = buildQuoteViewData(result, currentResults.input, type, groupKey);
           const active = selectedType === type && selectedGroup === groupKey ? " active" : "";
-          const manualLabel = manualPriceEnabled && manualScopeHasOverrides(type, groupKey) ? " · 수기단가" : "";
+          const manualLabel = (manualPriceEnabled || manualAmountEnabled) && manualScopeHasOverrides(type, groupKey) ? " · 수기조정" : "";
           cards.push(`
             <div class="card${active}" data-type="${type}" data-group="${groupKey}">
               <div class="type"><span>${result.typeLabel}${manualLabel}</span><span class="pill">${result.groupLabel}</span></div>
@@ -4535,6 +4587,37 @@ ${serverDescBody}`,
           />
         `;
       };
+      // 금액 셀: 수기 금액 조정 활성 시 직접 입력 가능 (단가와 독립)
+      const amountCell = (row) => {
+        if (!manualAmountEnabled) {
+          return `<strong>${moneyCell(row.amount)}</strong>`;
+        }
+        return `
+          <input
+            class="manual-price-input manual-amount-input"
+            type="number"
+            min="0"
+            step="1000"
+            data-section="${escapeHtml(row.section)}"
+            data-item="${escapeHtml(row.priceKey || row.item)}"
+            value="${Math.round(Number(row.amount || 0))}"
+            aria-label="${escapeHtml(row.item)} 금액 수기 조정"
+          />
+        `;
+      };
+      // 기타(수기) 행 공용 렌더: cs=system|wearable
+      const customRowHtml = (row, rowClass) => `
+            <tr class="${rowClass}">
+              <td class="center custom-no"><strong>${escapeHtml(String(row.subNo || row.no))}</strong><button type="button" class="cr-del-inline no-print" data-cs="${row.cs}" data-ci="${row.ci}" title="이 항목 삭제">×</button></td>
+              <td class="center custom-edit" contenteditable="true" spellcheck="false" data-cs="${row.cs}" data-ci="${row.ci}" data-cf="item" data-ph="항목">${escapeHtml(row.item)}</td>
+              <td class="custom-edit" contenteditable="true" spellcheck="false" data-cs="${row.cs}" data-ci="${row.ci}" data-cf="desc" data-ph="설명">${escapeHtml(row.desc)}</td>
+              <td class="center custom-edit" contenteditable="true" spellcheck="false" data-cs="${row.cs}" data-ci="${row.ci}" data-cf="unit" data-ph="단위">${escapeHtml(row.unit)}</td>
+              <td class="center custom-edit" contenteditable="true" spellcheck="false" data-cs="${row.cs}" data-ci="${row.ci}" data-cf="qty" data-ph="수량">${escapeHtml(row.qtyText || "")}</td>
+              <td class="num custom-edit custom-num" contenteditable="true" spellcheck="false" data-cs="${row.cs}" data-ci="${row.ci}" data-cf="unitPrice" data-ph="단가">${row.unitPriceNum != null ? moneyCell(row.unitPriceNum) : (row.unitPriceText ? escapeHtml(row.unitPriceText) : "")}</td>
+              <td class="num custom-edit custom-num" contenteditable="true" spellcheck="false" data-cs="${row.cs}" data-ci="${row.ci}" data-cf="amount" data-ph="금액">${row.amountNum != null ? `<strong>${moneyCell(row.amountNum)}</strong>` : (row.amountText ? escapeHtml(row.amountText) : "")}</td>
+              <td class="center custom-edit${(row.remark || "").includes("\n") ? " remark-wrap" : ""}" contenteditable="true" spellcheck="false" data-cs="${row.cs}" data-ci="${row.ci}" data-cf="remark" data-ph="비고">${remarkHtml(row.remark || "")}</td>
+            </tr>
+          `;
 
       $("metaQuoteNo").textContent = quoteNo;
       $("metaQuoteDate").textContent = quoteDate;
@@ -4617,26 +4700,15 @@ ${serverDescBody}`,
           </tr>
         </thead>
         <tbody>
-          ${result.systemRows.map((row) => row.isCustom ? `
-            <tr class="system-custom-row">
-              <td class="center custom-no"><strong>${escapeHtml(String(row.subNo || row.no))}</strong><button type="button" class="cr-del-inline no-print" data-ci="${row.ci}" title="이 기타 항목 삭제">×</button></td>
-              <td class="center custom-edit" contenteditable="true" spellcheck="false" data-ci="${row.ci}" data-cf="item" data-ph="항목">${escapeHtml(row.item)}</td>
-              <td class="custom-edit" contenteditable="true" spellcheck="false" data-ci="${row.ci}" data-cf="desc" data-ph="설명">${escapeHtml(row.desc)}</td>
-              <td class="center custom-edit" contenteditable="true" spellcheck="false" data-ci="${row.ci}" data-cf="unit" data-ph="단위">${escapeHtml(row.unit)}</td>
-              <td class="center custom-edit" contenteditable="true" spellcheck="false" data-ci="${row.ci}" data-cf="qty" data-ph="수량">${escapeHtml(row.qtyText || "")}</td>
-              <td class="num custom-edit custom-num" contenteditable="true" spellcheck="false" data-ci="${row.ci}" data-cf="unitPrice" data-ph="단가">${row.unitPriceNum != null ? moneyCell(row.unitPriceNum) : (row.unitPriceText ? escapeHtml(row.unitPriceText) : "")}</td>
-              <td class="num custom-edit custom-num" contenteditable="true" spellcheck="false" data-ci="${row.ci}" data-cf="amount" data-ph="금액">${row.amountNum != null ? `<strong>${moneyCell(row.amountNum)}</strong>` : (row.amountText ? escapeHtml(row.amountText) : "")}</td>
-              <td class="center custom-edit${(row.remark || "").includes("\n") ? " remark-wrap" : ""}" contenteditable="true" spellcheck="false" data-ci="${row.ci}" data-cf="remark" data-ph="비고">${remarkHtml(row.remark || "")}</td>
-            </tr>
-          ` : `
-            <tr class="${row.manualOverrideActive ? "manual-adjusted-row" : ""} ${row.isSubRow ? "system-subrow" : ""}">
+          ${result.systemRows.map((row) => row.isCustom ? customRowHtml(row, "system-custom-row") : `
+            <tr class="${(row.manualOverrideActive || row.manualAmountActive) ? "manual-adjusted-row" : ""} ${row.isSubRow ? "system-subrow" : ""}">
               <td class="center"><strong>${escapeHtml(String(row.subNo || row.no))}</strong></td>
               <td class="center"><strong>${escapeHtml(row.item)}</strong></td>
               <td>${escapeHtml(row.desc)}</td>
               <td class="center">${escapeHtml(String(row.unit))}</td>
               <td class="center">${qty(row.qty)}</td>
               <td class="num">${priceCell(row)}</td>
-              <td class="num"><strong>${moneyCell(row.amount)}</strong></td>
+              <td class="num">${amountCell(row)}</td>
               ${editableRemarkCell("sys", row, false)}
             </tr>
           `).join("")}
@@ -4720,15 +4792,15 @@ ${serverDescBody}`,
           </tr>
         </thead>
         <tbody>
-          ${result.wearableRows.map((row) => `
-            <tr class="${row.manualOverrideActive ? "manual-adjusted-row" : ""}${lightOn ? " light-row" : ""}">
+          ${result.wearableRows.map((row) => row.isCustom ? customRowHtml(row, `system-custom-row${lightOn ? " light-row" : ""}`) : `
+            <tr class="${(row.manualOverrideActive || row.manualAmountActive) ? "manual-adjusted-row" : ""}${lightOn ? " light-row" : ""}">
               <td class="center"><strong>${row.no}</strong></td>
               <td class="center">${escapeHtml(row.item)}</td>
               <td>${escapeHtml(row.desc)}</td>
               <td class="center">${escapeHtml(String(row.unit))}</td>
               <td class="center">${qty(row.qty)}</td>
               <td class="num">${priceCell(row)}</td>
-              <td class="num"><strong>${moneyCell(row.amount)}</strong></td>
+              <td class="num">${amountCell(row)}</td>
               ${editableRemarkCell("wear", row, lightOn)}
             </tr>
           `).join("")}
@@ -4782,7 +4854,11 @@ ${serverDescBody}`,
     function bindManualPriceInputs() {
       document.querySelectorAll(".manual-price-input").forEach((input) => {
         input.addEventListener("change", () => {
-          setManualPriceOverride(input.dataset.section, input.dataset.item, input.value);
+          if (input.classList.contains("manual-amount-input")) {
+            setManualAmountOverride(input.dataset.section, input.dataset.item, input.value);
+          } else {
+            setManualPriceOverride(input.dataset.section, input.dataset.item, input.value);
+          }
           renderAll();
         });
       });
@@ -4839,13 +4915,20 @@ ${serverDescBody}`,
     }
 
     // ── 8. 기타 항목 (견적서 직접 입력) ──
-    function addCustomRow() {
-      customRows.push({ item: "", desc: "", unit: "", qty: "", unitPrice: "", amount: "", remark: "" });
+    // 기타(수기) 행 상태 배열 선택: cs = "system" | "wearable"
+    function customRowsFor(cs) {
+      return cs === "wearable" ? wearableCustomRows : customRows;
+    }
+    function addCustomRow(cs) {
+      const list = customRowsFor(cs === "wearable" ? "wearable" : "system");
+      list.push({ item: "", desc: "", unit: "", qty: "", unitPrice: "", amount: "", remark: "" });
       renderAll();
     }
-    function deleteCustomRow(ci) {
-      if (ci >= 0 && ci < customRows.length) {
-        customRows.splice(ci, 1);
+    function addWearableCustomRow() { addCustomRow("wearable"); }
+    function deleteCustomRow(ci, cs) {
+      const list = customRowsFor(cs);
+      if (ci >= 0 && ci < list.length) {
+        list.splice(ci, 1);
         renderAll();
       }
     }
@@ -4953,7 +5036,7 @@ ${serverDescBody}`,
         });
       }
       // 8. 기타 항목(견적서 직접 입력) 복원 (초기화 시 빈 배열 → 모두 제거)
-      customRows = Array.isArray(data.customRows) ? data.customRows.map((c) => ({
+      const normCustom = (arr) => (Array.isArray(arr) ? arr : []).map((c) => ({
         item: String(c.item == null ? "" : c.item),
         desc: String(c.desc == null ? "" : c.desc),
         unit: String(c.unit == null ? "" : c.unit),
@@ -4961,7 +5044,9 @@ ${serverDescBody}`,
         unitPrice: String(c.unitPrice == null ? "" : c.unitPrice),
         amount: String(c.amount == null ? "" : c.amount),
         remark: String(c.remark == null ? "" : c.remark)
-      })) : [];
+      }));
+      customRows = normCustom(data.customRows);
+      wearableCustomRows = normCustom(data.wearableCustomRows);
       footerNotes = Array.isArray(data.footerNotes) ? data.footerNotes.map((t) => String(t == null ? "" : t)) : [];
       footerNoteColumns = Number(data.footerNoteColumns) === 2 ? 2 : 1;
       renderFooterNotes();
@@ -4971,6 +5056,7 @@ ${serverDescBody}`,
 
     function resetForm() {
       manualPriceEnabled = false;
+      manualAmountEnabled = false;
       clearManualPriceOverridesForCurrentScope();
       setInputs(DEFAULT_INPUTS);
       renderAll();
@@ -5014,12 +5100,17 @@ ${serverDescBody}`,
           customRows: (Array.isArray(input.customRows) ? input.customRows : []).filter((c) =>
             Object.keys(c).some((k) => String(c[k] == null ? "" : c[k]).trim() !== "")
           ),
+          wearableCustomRows: (Array.isArray(input.wearableCustomRows) ? input.wearableCustomRows : []).filter((c) =>
+            Object.keys(c).some((k) => String(c[k] == null ? "" : c[k]).trim() !== "")
+          ),
           footerNotes: (Array.isArray(input.footerNotes) ? input.footerNotes : []).filter((t) => String(t == null ? "" : t).trim() !== "")
         }),
         manual_price: {
           enabled: manualPriceEnabled,
           scope: quoteScopeKey(),
-          overrides: Object.assign({}, manualPriceOverrides[quoteScopeKey()] || {})
+          overrides: Object.assign({}, manualPriceOverrides[quoteScopeKey()] || {}),
+          amountEnabled: manualAmountEnabled,
+          amountOverrides: Object.assign({}, manualAmountOverrides[quoteScopeKey()] || {})
         }
       };
 
@@ -5142,6 +5233,10 @@ ${serverDescBody}`,
           manualPriceEnabled = Boolean(mp.enabled);
           if (mp.overrides) {
             manualPriceOverrides[quoteScopeKey(selectedType, selectedGroup)] = Object.assign({}, mp.overrides);
+          }
+          manualAmountEnabled = Boolean(mp.amountEnabled);
+          if (mp.amountOverrides) {
+            manualAmountOverrides[quoteScopeKey(selectedType, selectedGroup)] = Object.assign({}, mp.amountOverrides);
           }
           setInputs(record.input_snapshot || {});
           renderAll();
@@ -5873,7 +5968,9 @@ ${serverDescBody}`,
         manualPrice: {
           enabled: manualPriceEnabled,
           scope: quoteScopeKey(),
-          overrides: Object.assign({}, manualPriceOverrides[quoteScopeKey()] || {})
+          overrides: Object.assign({}, manualPriceOverrides[quoteScopeKey()] || {}),
+          amountEnabled: manualAmountEnabled,
+          amountOverrides: Object.assign({}, manualAmountOverrides[quoteScopeKey()] || {})
         }
       };
       const text = JSON.stringify(payload, null, 2);
@@ -6303,7 +6400,8 @@ ${serverDescBody}`,
       if (e.key === "Escape" && $("simulatorModal") && !$("simulatorModal").classList.contains("hidden")) closeSimulator();
     });
     if ($("historySearch")) $("historySearch").addEventListener("input", renderHistoryRows);
-    if ($("addCustomRowBtn")) $("addCustomRowBtn").addEventListener("click", addCustomRow);
+    if ($("addCustomRowBtn")) $("addCustomRowBtn").addEventListener("click", () => addCustomRow("system"));
+    if ($("addWearableCustomRowBtn")) $("addWearableCustomRowBtn").addEventListener("click", addWearableCustomRow);
     if ($("addFooterNoteBtn")) $("addFooterNoteBtn").addEventListener("click", addFooterNote);
     if ($("footerNoteColumns")) {
       $("footerNoteColumns").addEventListener("change", () => {
@@ -6327,44 +6425,46 @@ ${serverDescBody}`,
       footerNotes[fi] = readEditableText(cell);
     });
 
-    // 기타(8번) 항목 삭제 버튼 (견적서 내, 재렌더링 대비 이벤트 위임)
+    // 기타(수기) 항목 삭제 버튼 (견적서 내, 재렌더링 대비 이벤트 위임) — data-cs로 시스템/웨어러블 구분
     document.addEventListener("click", (e) => {
       const btn = e.target && e.target.closest ? e.target.closest(".cr-del-inline") : null;
       if (!btn) return;
       e.preventDefault();
-      deleteCustomRow(Number(btn.getAttribute("data-ci")));
+      deleteCustomRow(Number(btn.getAttribute("data-ci")), btn.getAttribute("data-cs") || "system");
     });
 
-    // 기타(8번) 셀 편집:
+    // 기타(수기) 셀 편집 (시스템 8번 / 웨어러블 추가행 공용):
     //  - 숫자 셀(단가/금액)은 포커스 시 원본 숫자로 표시 → 입력 → 포커스 아웃 시 ₩ 서식·합계 갱신을 위해 재렌더
     //  - 문자 셀(항목/설명/단위/수량/비고)은 입력 즉시 상태 반영(합계에 영향 없으므로 재렌더 불필요)
+    const customCellTarget = (cell) => {
+      const list = customRowsFor(cell.getAttribute("data-cs") || "system");
+      const ci = Number(cell.getAttribute("data-ci"));
+      const cf = cell.getAttribute("data-cf");
+      if (!Number.isInteger(ci) || !cf || !list[ci]) return null;
+      return { list, ci, cf };
+    };
     document.addEventListener("focusin", (e) => {
       const cell = e.target && e.target.closest ? e.target.closest("td.custom-num") : null;
       if (!cell) return;
-      const ci = Number(cell.getAttribute("data-ci"));
-      const cf = cell.getAttribute("data-cf");
-      if (!Number.isInteger(ci) || !cf || !customRows[ci]) return;
-      cell.textContent = String(customRows[ci][cf] == null ? "" : customRows[ci][cf]);
+      const t = customCellTarget(cell);
+      if (!t) return;
+      cell.textContent = String(t.list[t.ci][t.cf] == null ? "" : t.list[t.ci][t.cf]);
       placeCaretEnd(cell);
     });
     document.addEventListener("input", (e) => {
       const cell = e.target && e.target.closest ? e.target.closest("td.custom-edit") : null;
       if (!cell) return;
-      const ci = Number(cell.getAttribute("data-ci"));
-      const cf = cell.getAttribute("data-cf");
-      if (!Number.isInteger(ci) || !cf || !customRows[ci]) return;
+      const t = customCellTarget(cell);
+      if (!t) return;
       let text = readEditableText(cell);
       if (cell.classList.contains("custom-num")) text = text.replace(/[^\d-]/g, "");
-      customRows[ci][cf] = text;
+      t.list[t.ci][t.cf] = text;
     });
     document.addEventListener("focusout", (e) => {
       const cell = e.target && e.target.closest ? e.target.closest("td.custom-num") : null;
       if (!cell) return;
-      const ci = Number(cell.getAttribute("data-ci"));
-      const cf = cell.getAttribute("data-cf");
-      if (Number.isInteger(ci) && cf && customRows[ci]) {
-        customRows[ci][cf] = readEditableText(cell).replace(/[^\d-]/g, "");
-      }
+      const t = customCellTarget(cell);
+      if (t) t.list[t.ci][t.cf] = readEditableText(cell).replace(/[^\d-]/g, "");
       renderAll();
     });
 
@@ -6627,6 +6727,12 @@ ${serverDescBody}`,
       manualPriceEnabled = $("manualPriceEnabledToggle").checked;
       renderAll();
     });
+    if ($("manualAmountEnabledToggle")) {
+      $("manualAmountEnabledToggle").addEventListener("change", () => {
+        manualAmountEnabled = $("manualAmountEnabledToggle").checked;
+        renderAll();
+      });
+    }
     $("clearManualPricesBtn").addEventListener("click", () => {
       clearManualPriceOverridesForCurrentScope();
       renderAll();
