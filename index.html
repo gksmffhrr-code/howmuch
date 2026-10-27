@@ -2916,6 +2916,21 @@
       background: transparent !important;
       outline: none !important;
     }
+    /* 전체 수기 모드: 항목/설명 텍스트 편집 셀 */
+    .sheet-table td.manual-text-edit { cursor: text; }
+    .sheet-table td.manual-text-edit:focus {
+      outline: 2px solid #f59e0b;
+      outline-offset: -2px;
+      background: #fffbeb;
+    }
+    .sheet-table td.manual-text-adjusted { background: #fff7ed; }
+    .pdf-exporting .sheet-table td.manual-text-edit,
+    .pdf-exporting .sheet-table td.manual-text-adjusted,
+    body.pdf-exporting .sheet-table td.manual-text-edit,
+    body.pdf-exporting .sheet-table td.manual-text-adjusted {
+      background: transparent !important;
+      outline: none !important;
+    }
 
     /* 저장한 견적 검색창 */
     .history-head {
@@ -3714,6 +3729,8 @@
     // 수기 금액 조정: 단가와 독립적으로 금액을 직접 입력 (scope별 { "section::item": amount })
     let manualAmountEnabled = false;
     let manualAmountOverrides = {};
+    // 전체 수기 모드: 항목/설명 텍스트 수기 수정 (scope별 { "section::item::field": text })
+    let manualTextOverrides = {};
 
     const $ = (id) => document.getElementById(id);
     const money = (value) => `${new Intl.NumberFormat("ko-KR").format(Math.round(value || 0))}원`;
@@ -4128,12 +4145,14 @@
     function clearManualPriceOverridesForCurrentScope() {
       delete manualPriceOverrides[quoteScopeKey()];
       delete manualAmountOverrides[quoteScopeKey()];
+      delete manualTextOverrides[quoteScopeKey()];
     }
 
     function manualScopeHasOverrides(type = selectedType, groupKey = selectedGroup) {
       const scope = manualPriceOverrides[quoteScopeKey(type, groupKey)] || {};
       const aScope = manualAmountOverrides[quoteScopeKey(type, groupKey)] || {};
-      return Object.keys(scope).length > 0 || Object.keys(aScope).length > 0;
+      const tScope = manualTextOverrides[quoteScopeKey(type, groupKey)] || {};
+      return Object.keys(scope).length > 0 || Object.keys(aScope).length > 0 || Object.keys(tScope).length > 0;
     }
 
     // ── 수기 금액 조정 (단가와 독립) ──
@@ -4159,7 +4178,33 @@
       else scope[key] = parsed;
     }
 
-    // 수기 조정 모드: off(사용 안 함) / price(단가만) / all(단가+금액)
+    // ── 전체 수기 모드: 항목/설명 텍스트 수정 ──
+    function getManualTextScope(type = selectedType, groupKey = selectedGroup) {
+      const scopeKey = quoteScopeKey(type, groupKey);
+      if (!manualTextOverrides[scopeKey]) manualTextOverrides[scopeKey] = {};
+      return manualTextOverrides[scopeKey];
+    }
+    function manualTextKey(section, item, field) {
+      return `${quotePriceKey(section, item)}::${field}`;
+    }
+    function getManualText(section, item, field, type = selectedType, groupKey = selectedGroup) {
+      const scope = manualTextOverrides[quoteScopeKey(type, groupKey)] || {};
+      const key = manualTextKey(section, item, field);
+      return Object.prototype.hasOwnProperty.call(scope, key) ? String(scope[key]) : null;
+    }
+    function setManualText(section, item, field, value, defaultValue) {
+      const scope = getManualTextScope();
+      const key = manualTextKey(section, item, field);
+      const text = String(value == null ? "" : value);
+      if (text === String(defaultValue == null ? "" : defaultValue)) delete scope[key];
+      else scope[key] = text;
+    }
+    function manualTextScopeHasOverrides(type = selectedType, groupKey = selectedGroup) {
+      const scope = manualTextOverrides[quoteScopeKey(type, groupKey)] || {};
+      return Object.keys(scope).length > 0;
+    }
+
+    // 수기 조정 모드: off(사용 안 함) / price(단가만) / all(단가+금액+텍스트)
     function manualModeFromState() {
       if (manualAmountEnabled) return "all";
       if (manualPriceEnabled) return "price";
@@ -4430,7 +4475,12 @@ ${serverDescBody}`,
       const systemTotal = Math.round(systemRows.reduce((acc, row) => acc + Number(row.amount || 0), 0));
       const wearableTotal = Math.round(wearableRows.reduce((acc, row) => acc + Number(row.amount || 0), 0));
       const baseTotal = systemTotal + wearableTotal;
-      const financeTotal = type === "usage" ? Math.round(baseTotal * Number(result.financeRate || 0)) : 0;
+      let financeTotal = type === "usage" ? Math.round(baseTotal * Number(result.financeRate || 0)) : 0;
+      // 설비 운용비(금융 운영 및 자산 관리비) 수기 조정: 전체 수기 모드에서 금액 직접 입력 가능
+      const financeManual = type === "usage" && manualAmountEnabled && hasManualAmountOverride("finance", "금융 운영 및 자산 관리비", type, groupKey);
+      if (financeManual) {
+        financeTotal = Math.round(Number(getManualAmountOverride("finance", "금융 운영 및 자산 관리비", type, groupKey) || 0));
+      }
       const total = baseTotal + financeTotal;
 
       return {
@@ -4442,6 +4492,7 @@ ${serverDescBody}`,
         systemRows,
         wearableRows,
         detailRows: result.systemLines.filter((row) => Number(row.amount || 0) !== 0 || Number(row.qty || 0) !== 0),
+        financeManual,
         totals: {
           system: systemTotal,
           wearable: wearableTotal,
@@ -4616,6 +4667,20 @@ ${serverDescBody}`,
           />
         `;
       };
+      // 항목/설명 텍스트 셀: 전체 수기 모드에서 contenteditable, 오버라이드 있으면 그 값 표시
+      // ref = { section, item(priceKey), field: "item"|"desc" }, cls = 추가 class
+      const textCell = (defaultText, ref, cls) => {
+        const ov = getManualText(ref.section, ref.item, ref.field);
+        const shown = ov != null ? ov : String(defaultText == null ? "" : defaultText);
+        const classes = [cls, ov != null ? "manual-text-adjusted" : ""].filter(Boolean).join(" ");
+        if (!manualAmountEnabled) {
+          return `<td class="${classes}">${ref.field === "item" && ref.section === "system" ? `<strong>${escapeHtml(shown)}</strong>` : escapeHtml(shown)}</td>`;
+        }
+        return `<td class="${classes} manual-text-edit" contenteditable="true" spellcheck="false"
+          data-mt-section="${escapeHtml(ref.section)}" data-mt-item="${escapeHtml(ref.item)}" data-mt-field="${ref.field}"
+          data-mt-default="${escapeHtml(encodeURIComponent(String(defaultText == null ? "" : defaultText)))}"
+          title="클릭하여 ${ref.field === "item" ? "항목명" : "설명"}을 직접 수정할 수 있습니다">${ref.field === "item" && ref.section === "system" ? `<strong>${escapeHtml(shown)}</strong>` : escapeHtml(shown).replace(/\n/g, "<br>")}</td>`;
+      };
       // 기타(수기) 행 공용 렌더: cs=system|wearable
       const customRowHtml = (row, rowClass) => `
             <tr class="${rowClass}">
@@ -4714,8 +4779,8 @@ ${serverDescBody}`,
           ${result.systemRows.map((row) => row.isCustom ? customRowHtml(row, "system-custom-row") : `
             <tr class="${(row.manualOverrideActive || row.manualAmountActive) ? "manual-adjusted-row" : ""} ${row.isSubRow ? "system-subrow" : ""}">
               <td class="center"><strong>${escapeHtml(String(row.subNo || row.no))}</strong></td>
-              <td class="center"><strong>${escapeHtml(row.item)}</strong></td>
-              <td>${escapeHtml(row.desc)}</td>
+              ${textCell(row.item, { section: row.section, item: row.priceKey || row.item, field: "item" }, "center")}
+              ${textCell(row.desc, { section: row.section, item: row.priceKey || row.item, field: "desc" }, "")}
               <td class="center">${escapeHtml(String(row.unit))}</td>
               <td class="center">${qty(row.qty)}</td>
               <td class="num">${priceCell(row)}</td>
@@ -4806,8 +4871,8 @@ ${serverDescBody}`,
           ${result.wearableRows.map((row) => row.isCustom ? customRowHtml(row, `system-custom-row${lightOn ? " light-row" : ""}`) : `
             <tr class="${(row.manualOverrideActive || row.manualAmountActive) ? "manual-adjusted-row" : ""}${lightOn ? " light-row" : ""}">
               <td class="center"><strong>${row.no}</strong></td>
-              <td class="center">${escapeHtml(row.item)}</td>
-              <td>${escapeHtml(row.desc)}</td>
+              ${textCell(row.item, { section: row.section, item: row.priceKey || row.item, field: "item" }, "center")}
+              ${textCell(row.desc, { section: row.section, item: row.priceKey || row.item, field: "desc" }, "")}
               <td class="center">${escapeHtml(String(row.unit))}</td>
               <td class="center">${qty(row.qty)}</td>
               <td class="num">${priceCell(row)}</td>
@@ -4841,11 +4906,19 @@ ${serverDescBody}`,
             </tr>
           </thead>
           <tbody>
-            <tr>
+            <tr class="${result.financeManual ? "manual-adjusted-row" : ""}">
               <td class="center"><strong>1</strong></td>
-              <td class="center">금융 운영 및 자산 관리비</td>
-              <td>장기 계약에 따른 금융비용 및 설비(장비, 시스템 등)의 운용·유지·관리 비용</td>
-              <td class="num"><strong>${moneyWon(result.totals.finance)}</strong></td>
+              ${textCell("금융 운영 및 자산 관리비", { section: "finance", item: "금융 운영 및 자산 관리비", field: "item" }, "center")}
+              ${textCell("장기 계약에 따른 금융비용 및 설비(장비, 시스템 등)의 운용·유지·관리 비용", { section: "finance", item: "금융 운영 및 자산 관리비", field: "desc" }, "")}
+              <td class="num">${manualAmountEnabled ? `
+                <input
+                  class="manual-price-input manual-amount-input"
+                  type="number" min="0" step="1000"
+                  data-section="finance"
+                  data-item="금융 운영 및 자산 관리비"
+                  value="${Math.round(Number(result.totals.finance || 0))}"
+                  aria-label="금융 운영 및 자산 관리비 금액 수기 조정"
+                />` : `<strong>${moneyWon(result.totals.finance)}</strong>`}</td>
             </tr>
             <tr class="subtotal">
               <th colspan="3" class="center">합 &nbsp;&nbsp; 계</th>
@@ -5121,7 +5194,8 @@ ${serverDescBody}`,
           scope: quoteScopeKey(),
           overrides: Object.assign({}, manualPriceOverrides[quoteScopeKey()] || {}),
           amountEnabled: manualAmountEnabled,
-          amountOverrides: Object.assign({}, manualAmountOverrides[quoteScopeKey()] || {})
+          amountOverrides: Object.assign({}, manualAmountOverrides[quoteScopeKey()] || {}),
+          textOverrides: Object.assign({}, manualTextOverrides[quoteScopeKey()] || {})
         }
       };
 
@@ -5248,6 +5322,9 @@ ${serverDescBody}`,
           manualAmountEnabled = Boolean(mp.amountEnabled);
           if (mp.amountOverrides) {
             manualAmountOverrides[quoteScopeKey(selectedType, selectedGroup)] = Object.assign({}, mp.amountOverrides);
+          }
+          if (mp.textOverrides) {
+            manualTextOverrides[quoteScopeKey(selectedType, selectedGroup)] = Object.assign({}, mp.textOverrides);
           }
           setInputs(record.input_snapshot || {});
           renderAll();
@@ -5466,13 +5543,18 @@ ${serverDescBody}`,
             ], cht);
             return;
           }
-          const desc = String(row.desc == null ? "" : row.desc);
+          // 전체 수기 모드에서 수정된 항목/설명 텍스트 반영
+          const pk = row.priceKey || row.item;
+          const itemOv = getManualText(row.section, pk, "item");
+          const descOv = getManualText(row.section, pk, "desc");
+          const itemText = itemOv != null ? itemOv : String(row.item == null ? "" : row.item);
+          const desc = descOv != null ? descOv : String(row.desc == null ? "" : row.desc);
           const remark = tableId ? resolveRemark(tableId, row) : String(row.remark == null ? "" : row.remark);
           const lineCount = Math.max(desc.split("\n").length, remark.split("\n").length, 1);
           const ht = lineCount > 1 ? Math.max(18, lineCount * 15) : undefined;
           addRow([
             row.subNo ? S(1, row.subNo, 5) : N(1, row.no, 5),
-            S(2, row.item, 4),
+            S(2, itemText, 4),
             S(3, desc, 4),
             S(4, row.unit, 5),
             N(5, row.qty, 5),
@@ -5492,8 +5574,12 @@ ${serverDescBody}`,
         const finTitleIdx = addRow([]);
         mergeLabel(finTitleIdx, 1, 8, "3. 사용량비례형 판매모델 서버 운용비", 13);
         const rate = Math.round(Number(result.financeRate || 0) * 1000) / 10;
+        const finItemOv = getManualText("finance", "금융 운영 및 자산 관리비", "item");
+        const finLabel = finItemOv != null
+          ? finItemOv
+          : (result.financeManual ? "금융 운영 및 자산 관리비 (수기 조정)" : `월 서버 운용비 (기준액의 약 ${rate}%)`);
         const finIdx = addRow([N(7, t.finance, 7), S(8, "", 4)]);
-        mergeLabel(finIdx, 1, 6, `월 서버 운용비 (기준액의 약 ${rate}%)`, 4);
+        mergeLabel(finIdx, 1, 6, finLabel, 4);
       }
 
       // 합계 요약
@@ -5981,7 +6067,8 @@ ${serverDescBody}`,
           scope: quoteScopeKey(),
           overrides: Object.assign({}, manualPriceOverrides[quoteScopeKey()] || {}),
           amountEnabled: manualAmountEnabled,
-          amountOverrides: Object.assign({}, manualAmountOverrides[quoteScopeKey()] || {})
+          amountOverrides: Object.assign({}, manualAmountOverrides[quoteScopeKey()] || {}),
+          textOverrides: Object.assign({}, manualTextOverrides[quoteScopeKey()] || {})
         }
       };
       const text = JSON.stringify(payload, null, 2);
@@ -6477,6 +6564,22 @@ ${serverDescBody}`,
       const t = customCellTarget(cell);
       if (t) t.list[t.ci][t.cf] = readEditableText(cell).replace(/[^\d-]/g, "");
       renderAll();
+    });
+
+    // 전체 수기 모드: 항목/설명 텍스트 편집 저장 (포커스 아웃 시, 기본값과 같으면 저장 해제)
+    document.addEventListener("focusout", (e) => {
+      const cell = e.target && e.target.closest ? e.target.closest("td.manual-text-edit") : null;
+      if (!cell) return;
+      const section = cell.getAttribute("data-mt-section");
+      const item = cell.getAttribute("data-mt-item");
+      const field = cell.getAttribute("data-mt-field");
+      const def = decodeURIComponent(cell.getAttribute("data-mt-default") || "");
+      let raw = cell.innerText; if (raw == null) raw = cell.textContent;
+      let text = (raw || "").replace(/ /g, " ").replace(/\r/g, "");
+      text = text.split("\n").map((s) => s.replace(/[ \t]+$/, "")).join("\n").replace(/\n{3,}/g, "\n\n").replace(/^\n+|\n+$/g, "");
+      if (!section || !item || !field) return;
+      setManualText(section, item, field, text, def);
+      updateManualPriceControls();
     });
 
     // 비고 칸 수기입력 저장: 편집 후 포커스가 빠질 때 행 키별로 저장(기본값과 같으면 저장 해제)
