@@ -2917,17 +2917,18 @@
       outline: none !important;
     }
     /* 전체 수기 모드: 항목/설명 텍스트 편집 셀 */
-    .sheet-table td.manual-text-edit { cursor: text; }
-    .sheet-table td.manual-text-edit:focus {
+    .sheet-table .manual-text-edit { cursor: text; }
+    .sheet-table .manual-text-edit:focus {
       outline: 2px solid #f59e0b;
       outline-offset: -2px;
       background: #fffbeb;
     }
-    .sheet-table td.manual-text-adjusted { background: #fff7ed; }
-    .pdf-exporting .sheet-table td.manual-text-edit,
-    .pdf-exporting .sheet-table td.manual-text-adjusted,
-    body.pdf-exporting .sheet-table td.manual-text-edit,
-    body.pdf-exporting .sheet-table td.manual-text-adjusted {
+    .sheet-table .manual-text-adjusted { background: #fff7ed; }
+    .sheet-table span.manual-text-edit { display: inline-block; min-width: 2em; }
+    .pdf-exporting .sheet-table .manual-text-edit,
+    .pdf-exporting .sheet-table .manual-text-adjusted,
+    body.pdf-exporting .sheet-table .manual-text-edit,
+    body.pdf-exporting .sheet-table .manual-text-adjusted {
       background: transparent !important;
       outline: none !important;
     }
@@ -3731,6 +3732,8 @@
     let manualAmountOverrides = {};
     // 전체 수기 모드: 항목/설명 텍스트 수기 수정 (scope별 { "section::item::field": text })
     let manualTextOverrides = {};
+    // 전체 수기 모드: 수량 수기 수정 (scope별 { "section::item": qty })
+    let manualQtyOverrides = {};
 
     const $ = (id) => document.getElementById(id);
     const money = (value) => `${new Intl.NumberFormat("ko-KR").format(Math.round(value || 0))}원`;
@@ -4146,13 +4149,15 @@
       delete manualPriceOverrides[quoteScopeKey()];
       delete manualAmountOverrides[quoteScopeKey()];
       delete manualTextOverrides[quoteScopeKey()];
+      delete manualQtyOverrides[quoteScopeKey()];
     }
 
     function manualScopeHasOverrides(type = selectedType, groupKey = selectedGroup) {
       const scope = manualPriceOverrides[quoteScopeKey(type, groupKey)] || {};
       const aScope = manualAmountOverrides[quoteScopeKey(type, groupKey)] || {};
       const tScope = manualTextOverrides[quoteScopeKey(type, groupKey)] || {};
-      return Object.keys(scope).length > 0 || Object.keys(aScope).length > 0 || Object.keys(tScope).length > 0;
+      const qScope = manualQtyOverrides[quoteScopeKey(type, groupKey)] || {};
+      return Object.keys(scope).length > 0 || Object.keys(aScope).length > 0 || Object.keys(tScope).length > 0 || Object.keys(qScope).length > 0;
     }
 
     // ── 수기 금액 조정 (단가와 독립) ──
@@ -4204,7 +4209,26 @@
       return Object.keys(scope).length > 0;
     }
 
-    // 수기 조정 모드: off(사용 안 함) / price(단가만) / all(단가+금액+텍스트)
+    // ── 전체 수기 모드: 수량 수정 ──
+    function getManualQtyScope(type = selectedType, groupKey = selectedGroup) {
+      const scopeKey = quoteScopeKey(type, groupKey);
+      if (!manualQtyOverrides[scopeKey]) manualQtyOverrides[scopeKey] = {};
+      return manualQtyOverrides[scopeKey];
+    }
+    function getManualQty(section, item, type = selectedType, groupKey = selectedGroup) {
+      const scope = manualQtyOverrides[quoteScopeKey(type, groupKey)] || {};
+      const key = quotePriceKey(section, item);
+      return Object.prototype.hasOwnProperty.call(scope, key) ? Number(scope[key] || 0) : null;
+    }
+    function setManualQty(section, item, value) {
+      const scope = getManualQtyScope();
+      const key = quotePriceKey(section, item);
+      const parsed = parseManualPrice(value);
+      if (parsed === null) delete scope[key];
+      else scope[key] = parsed;
+    }
+
+    // 수기 조정 모드: off(사용 안 함) / price(단가만) / all(단가+금액+수량+텍스트)
     function manualModeFromState() {
       if (manualAmountEnabled) return "all";
       if (manualPriceEnabled) return "price";
@@ -4231,8 +4255,12 @@
       const hasOverride = manualActive && hasManualPriceOverride(row.section, priceItem, type, groupKey);
       const overridePrice = hasOverride ? getManualPriceOverride(row.section, priceItem, type, groupKey) : null;
       const effectiveUnitPrice = hasOverride ? overridePrice : Number(row.defaultUnitPrice || 0);
-      let adjustedAmount = hasOverride
-        ? Math.round(Number(row.qty || 0) * Number(effectiveUnitPrice || 0))
+      // 전체 수기 모드: 수량 오버라이드 → 금액 = 수량 × 단가 재계산
+      const qtyActive = manualAmountEnabled && row.manualEditable !== false;
+      const qtyOv = qtyActive ? getManualQty(row.section, priceItem, type, groupKey) : null;
+      const effectiveQty = qtyOv != null ? qtyOv : Number(row.qty || 0);
+      let adjustedAmount = (hasOverride || qtyOv != null)
+        ? Math.round(effectiveQty * Number(effectiveUnitPrice || 0))
         : Math.round(Number(row.originalAmount || 0));
 
       // 수기 금액 조정: 활성화 + 오버라이드 존재 시 단가 계산과 무관하게 입력 금액을 그대로 사용
@@ -4244,9 +4272,10 @@
 
       return {
         ...row,
+        qty: effectiveQty,
         effectiveUnitPrice,
         amount: adjustedAmount,
-        manualOverrideActive: hasOverride,
+        manualOverrideActive: hasOverride || qtyOv != null,
         manualAmountActive: hasAmountOverride
       };
     }
@@ -4674,12 +4703,31 @@ ${serverDescBody}`,
         const shown = ov != null ? ov : String(defaultText == null ? "" : defaultText);
         const classes = [cls, ov != null ? "manual-text-adjusted" : ""].filter(Boolean).join(" ");
         if (!manualAmountEnabled) {
-          return `<td class="${classes}">${ref.field === "item" && ref.section === "system" ? `<strong>${escapeHtml(shown)}</strong>` : escapeHtml(shown)}</td>`;
+          return `<td class="${classes}">${(ref.field === "item" && ref.section === "system") || ref.field === "no" ? `<strong>${escapeHtml(shown)}</strong>` : escapeHtml(shown)}</td>`;
         }
         return `<td class="${classes} manual-text-edit" contenteditable="true" spellcheck="false"
           data-mt-section="${escapeHtml(ref.section)}" data-mt-item="${escapeHtml(ref.item)}" data-mt-field="${ref.field}"
           data-mt-default="${escapeHtml(encodeURIComponent(String(defaultText == null ? "" : defaultText)))}"
-          title="클릭하여 ${ref.field === "item" ? "항목명" : "설명"}을 직접 수정할 수 있습니다">${ref.field === "item" && ref.section === "system" ? `<strong>${escapeHtml(shown)}</strong>` : escapeHtml(shown).replace(/\n/g, "<br>")}</td>`;
+          title="클릭하여 직접 수정할 수 있습니다">${(ref.field === "item" && ref.section === "system") || ref.field === "no" ? `<strong>${escapeHtml(shown)}</strong>` : escapeHtml(shown).replace(/\n/g, "<br>")}</td>`;
+      };
+      // 수량 셀: 전체 수기 모드에서 숫자 입력 (수량 변경 시 금액 = 수량 × 단가 재계산)
+      const qtyCell = (row) => {
+        if (!manualAmountEnabled) return `<td class="center">${qty(row.qty)}</td>`;
+        return `<td class="center"><input class="manual-price-input manual-qty-input" type="number" min="0" step="1"
+          data-section="${escapeHtml(row.section)}" data-item="${escapeHtml(row.priceKey || row.item)}"
+          value="${Math.round(Number(row.qty || 0))}" aria-label="${escapeHtml(row.item)} 수량 수기 조정" style="text-align:center;" /></td>`;
+      };
+      // 셀 내부 일부 텍스트만 편집 (상단 요약표 품명/설명 등). wrap="strong"이면 굵게.
+      const textSpan = (defaultText, ref, wrap) => {
+        const ov = getManualText(ref.section, ref.item, ref.field);
+        const shown = ov != null ? ov : String(defaultText == null ? "" : defaultText);
+        const inner = escapeHtml(shown).replace(/\n/g, "<br>");
+        const body = wrap === "strong" ? `<strong>${inner}</strong>` : inner;
+        if (!manualAmountEnabled) return ov != null ? `<span class="manual-text-adjusted">${body}</span>` : body;
+        return `<span class="manual-text-edit${ov != null ? " manual-text-adjusted" : ""}" contenteditable="true" spellcheck="false"
+          data-mt-section="${escapeHtml(ref.section)}" data-mt-item="${escapeHtml(ref.item)}" data-mt-field="${ref.field}"
+          data-mt-default="${escapeHtml(encodeURIComponent(String(defaultText == null ? "" : defaultText)))}"
+          title="클릭하여 직접 수정할 수 있습니다">${body}</span>`;
       };
       // 기타(수기) 행 공용 렌더: cs=system|wearable
       const customRowHtml = (row, rowClass) => `
@@ -4726,27 +4774,27 @@ ${serverDescBody}`,
         </thead>
         <tbody>
           <tr class="summary-parent">
-            <td class="center summary-no-parent" rowspan="${productGroupRowCount}"><strong>1</strong></td>
-            <td><strong>입원환자 실시간 모니터링 시스템 thynC-IP2140</strong></td>
+            <td class="center summary-no-parent" rowspan="${productGroupRowCount}">${textSpan("1", { section: "summary", item: "product", field: "no" }, "strong")}</td>
+            <td>${textSpan("입원환자 실시간 모니터링 시스템 thynC-IP2140", { section: "summary", item: "product", field: "item" }, "strong")}</td>
             <td class="num"><strong>${moneyCell(result.totals.base)}</strong></td>
-            <td class="center"></td>
+            ${textCell("", { section: "summary", item: "product", field: "remark" }, "center")}
           </tr>
           ${productSubRows.map((row) => `
             <tr class="summary-sub">
               <td class="sub-item">
-                <div class="sub-title">${escapeHtml(row.subNo)}. ${escapeHtml(row.item)}</div>
-                <div class="sub-desc">${escapeHtml(row.desc)}</div>
+                <div class="sub-title">${textSpan(row.subNo, { section: "summary", item: row.subNo, field: "no" }, "")}. ${textSpan(row.item, { section: "summary", item: row.subNo, field: "item" }, "")}</div>
+                <div class="sub-desc">${textSpan(row.desc, { section: "summary", item: row.subNo, field: "desc" }, "")}</div>
               </td>
               <td class="num"><strong>${moneyCell(row.amount)}</strong></td>
-              <td class="center${(row.remark || "").includes("\n") ? " remark-wrap" : ""}">${remarkHtml(row.remark || "")}</td>
+              ${textCell(row.remark || "", { section: "summary", item: row.subNo, field: "remark" }, `center${(row.remark || "").includes("\n") ? " remark-wrap" : ""}`)}
             </tr>
           `).join("")}
           ${selectedType === "usage" ? `
             <tr class="summary-parent finance-parent">
-              <td class="center summary-no-parent"><strong>2</strong></td>
-              <td><strong>금융 운영 및 자산 관리비</strong></td>
+              <td class="center summary-no-parent">${textSpan("2", { section: "summary", item: "finance", field: "no" }, "strong")}</td>
+              <td>${textSpan("금융 운영 및 자산 관리비", { section: "summary", item: "finance", field: "item" }, "strong")}</td>
               <td class="num"><strong>${moneyCell(result.totals.finance)}</strong></td>
-              <td class="center"></td>
+              ${textCell("", { section: "summary", item: "finance", field: "remark" }, "center")}
             </tr>
           ` : ""}
         </tbody>
@@ -4778,11 +4826,11 @@ ${serverDescBody}`,
         <tbody>
           ${result.systemRows.map((row) => row.isCustom ? customRowHtml(row, "system-custom-row") : `
             <tr class="${(row.manualOverrideActive || row.manualAmountActive) ? "manual-adjusted-row" : ""} ${row.isSubRow ? "system-subrow" : ""}">
-              <td class="center"><strong>${escapeHtml(String(row.subNo || row.no))}</strong></td>
+              ${textCell(String(row.subNo || row.no), { section: row.section, item: row.priceKey || row.item, field: "no" }, "center")}
               ${textCell(row.item, { section: row.section, item: row.priceKey || row.item, field: "item" }, "center")}
               ${textCell(row.desc, { section: row.section, item: row.priceKey || row.item, field: "desc" }, "")}
-              <td class="center">${escapeHtml(String(row.unit))}</td>
-              <td class="center">${qty(row.qty)}</td>
+              ${textCell(String(row.unit), { section: row.section, item: row.priceKey || row.item, field: "unit" }, "center")}
+              ${qtyCell(row)}
               <td class="num">${priceCell(row)}</td>
               <td class="num">${amountCell(row)}</td>
               ${editableRemarkCell("sys", row, false)}
@@ -4870,11 +4918,11 @@ ${serverDescBody}`,
         <tbody>
           ${result.wearableRows.map((row) => row.isCustom ? customRowHtml(row, `system-custom-row${lightOn ? " light-row" : ""}`) : `
             <tr class="${(row.manualOverrideActive || row.manualAmountActive) ? "manual-adjusted-row" : ""}${lightOn ? " light-row" : ""}">
-              <td class="center"><strong>${row.no}</strong></td>
+              ${textCell(String(row.no), { section: row.section, item: row.priceKey || row.item, field: "no" }, "center")}
               ${textCell(row.item, { section: row.section, item: row.priceKey || row.item, field: "item" }, "center")}
               ${textCell(row.desc, { section: row.section, item: row.priceKey || row.item, field: "desc" }, "")}
-              <td class="center">${escapeHtml(String(row.unit))}</td>
-              <td class="center">${qty(row.qty)}</td>
+              ${textCell(String(row.unit), { section: row.section, item: row.priceKey || row.item, field: "unit" }, "center")}
+              ${qtyCell(row)}
               <td class="num">${priceCell(row)}</td>
               <td class="num">${amountCell(row)}</td>
               ${editableRemarkCell("wear", row, lightOn)}
@@ -4907,7 +4955,7 @@ ${serverDescBody}`,
           </thead>
           <tbody>
             <tr class="${result.financeManual ? "manual-adjusted-row" : ""}">
-              <td class="center"><strong>1</strong></td>
+              ${textCell("1", { section: "finance", item: "금융 운영 및 자산 관리비", field: "no" }, "center")}
               ${textCell("금융 운영 및 자산 관리비", { section: "finance", item: "금융 운영 및 자산 관리비", field: "item" }, "center")}
               ${textCell("장기 계약에 따른 금융비용 및 설비(장비, 시스템 등)의 운용·유지·관리 비용", { section: "finance", item: "금융 운영 및 자산 관리비", field: "desc" }, "")}
               <td class="num">${manualAmountEnabled ? `
@@ -4940,6 +4988,8 @@ ${serverDescBody}`,
         input.addEventListener("change", () => {
           if (input.classList.contains("manual-amount-input")) {
             setManualAmountOverride(input.dataset.section, input.dataset.item, input.value);
+          } else if (input.classList.contains("manual-qty-input")) {
+            setManualQty(input.dataset.section, input.dataset.item, input.value);
           } else {
             setManualPriceOverride(input.dataset.section, input.dataset.item, input.value);
           }
@@ -5195,7 +5245,8 @@ ${serverDescBody}`,
           overrides: Object.assign({}, manualPriceOverrides[quoteScopeKey()] || {}),
           amountEnabled: manualAmountEnabled,
           amountOverrides: Object.assign({}, manualAmountOverrides[quoteScopeKey()] || {}),
-          textOverrides: Object.assign({}, manualTextOverrides[quoteScopeKey()] || {})
+          textOverrides: Object.assign({}, manualTextOverrides[quoteScopeKey()] || {}),
+          qtyOverrides: Object.assign({}, manualQtyOverrides[quoteScopeKey()] || {})
         }
       };
 
@@ -5325,6 +5376,9 @@ ${serverDescBody}`,
           }
           if (mp.textOverrides) {
             manualTextOverrides[quoteScopeKey(selectedType, selectedGroup)] = Object.assign({}, mp.textOverrides);
+          }
+          if (mp.qtyOverrides) {
+            manualQtyOverrides[quoteScopeKey(selectedType, selectedGroup)] = Object.assign({}, mp.qtyOverrides);
           }
           setInputs(record.input_snapshot || {});
           renderAll();
@@ -5549,14 +5603,17 @@ ${serverDescBody}`,
           const descOv = getManualText(row.section, pk, "desc");
           const itemText = itemOv != null ? itemOv : String(row.item == null ? "" : row.item);
           const desc = descOv != null ? descOv : String(row.desc == null ? "" : row.desc);
+          const noOv = getManualText(row.section, pk, "no");
+          const unitOv = getManualText(row.section, pk, "unit");
+          const unitText = unitOv != null ? unitOv : String(row.unit == null ? "" : row.unit);
           const remark = tableId ? resolveRemark(tableId, row) : String(row.remark == null ? "" : row.remark);
           const lineCount = Math.max(desc.split("\n").length, remark.split("\n").length, 1);
           const ht = lineCount > 1 ? Math.max(18, lineCount * 15) : undefined;
           addRow([
-            row.subNo ? S(1, row.subNo, 5) : N(1, row.no, 5),
+            noOv != null ? S(1, noOv, 5) : (row.subNo ? S(1, row.subNo, 5) : N(1, row.no, 5)),
             S(2, itemText, 4),
             S(3, desc, 4),
-            S(4, row.unit, 5),
+            S(4, unitText, 5),
             N(5, row.qty, 5),
             N(6, row.effectiveUnitPrice, 6),
             N(7, row.amount, 7),
@@ -5755,12 +5812,15 @@ ${serverDescBody}`,
     function replaceManualInputsForExport(root) {
       root.querySelectorAll(".manual-price-input").forEach((input) => {
         const value = Math.round(Number(input.value || 0));
+        const isQty = input.classList.contains("manual-qty-input");
         const span = document.createElement("span");
-        span.textContent = value ? `₩${new Intl.NumberFormat("ko-KR").format(value)}` : "";
+        span.textContent = isQty
+          ? new Intl.NumberFormat("ko-KR").format(value)
+          : (value ? `₩${new Intl.NumberFormat("ko-KR").format(value)}` : "");
         span.style.display = "inline-block";
         span.style.width = "100%";
-        span.style.textAlign = "right";
-        span.style.fontWeight = "800";
+        span.style.textAlign = isQty ? "center" : "right";
+        span.style.fontWeight = isQty ? "400" : "800";
         input.replaceWith(span);
       });
     }
@@ -6068,7 +6128,8 @@ ${serverDescBody}`,
           overrides: Object.assign({}, manualPriceOverrides[quoteScopeKey()] || {}),
           amountEnabled: manualAmountEnabled,
           amountOverrides: Object.assign({}, manualAmountOverrides[quoteScopeKey()] || {}),
-          textOverrides: Object.assign({}, manualTextOverrides[quoteScopeKey()] || {})
+          textOverrides: Object.assign({}, manualTextOverrides[quoteScopeKey()] || {}),
+          qtyOverrides: Object.assign({}, manualQtyOverrides[quoteScopeKey()] || {})
         }
       };
       const text = JSON.stringify(payload, null, 2);
@@ -6568,7 +6629,7 @@ ${serverDescBody}`,
 
     // 전체 수기 모드: 항목/설명 텍스트 편집 저장 (포커스 아웃 시, 기본값과 같으면 저장 해제)
     document.addEventListener("focusout", (e) => {
-      const cell = e.target && e.target.closest ? e.target.closest("td.manual-text-edit") : null;
+      const cell = e.target && e.target.closest ? e.target.closest(".manual-text-edit") : null;
       if (!cell) return;
       const section = cell.getAttribute("data-mt-section");
       const item = cell.getAttribute("data-mt-item");
