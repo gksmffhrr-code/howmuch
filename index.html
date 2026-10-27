@@ -3389,13 +3389,13 @@
                   <option value="2">2열</option>
                 </select>
               </label>
-              <label class="toggle-inline" title="활성화하면 견적서 표의 단가를 수기로 조정할 수 있습니다. (금액 = 수량 × 단가)">
-                <input type="checkbox" id="manualPriceEnabledToggle" />
-                수기 단가 조정
-              </label>
-              <label class="toggle-inline" title="활성화하면 견적서 표의 금액을 단가와 무관하게 직접 입력할 수 있습니다. 입력한 금액이 그대로 합계에 반영됩니다.">
-                <input type="checkbox" id="manualAmountEnabledToggle" />
-                수기 금액 조정
+              <label class="toggle-inline" title="수기 조정 모드 — 사용 안 함 / 단가 수기 조정(금액 = 수량 × 단가 자동 계산) / 전체 수기 조정(단가·금액 모두 직접 입력, 입력한 금액이 그대로 합계 반영)">
+                수기 조정
+                <select id="manualModeSelect" style="width:auto;">
+                  <option value="off">사용 안 함</option>
+                  <option value="price">단가 수기 조정</option>
+                  <option value="all">전체 수기 조정</option>
+                </select>
               </label>
               <button type="button" class="small ghost" id="clearManualPricesBtn" disabled>수기값 초기화</button>
               <label class="toggle-inline" title="체크하면 최종 견적서에 생략된 세부 산출내역을 표시합니다.">
@@ -3590,7 +3590,7 @@
       // thynC 라이트버전 전용 웨어러블 단가 (3종에만 적용)
       wearableLight: {
         ecg: 726000,
-        spo2: 968000,
+        spo2: 484000,
         spo2Sensor: 198000
       },
       service: {
@@ -3617,7 +3617,8 @@
         pcAllInOne: 577500
       },
       mobile: {
-        sw: { 10: 770000, 20: 587400, 30: 550000, 40: 440000, 50: 403700, 100: 330000 },
+        // 모바일 매니징 S/W: 구간 무관 660,000원 고정
+        sw: { 10: 660000, 20: 660000, 30: 660000, 40: 660000, 50: 660000, 100: 660000 },
         tablet: 1906300
       }
     };
@@ -4158,9 +4159,18 @@
       else scope[key] = parsed;
     }
 
+    // 수기 조정 모드: off(사용 안 함) / price(단가만) / all(단가+금액)
+    function manualModeFromState() {
+      if (manualAmountEnabled) return "all";
+      if (manualPriceEnabled) return "price";
+      return "off";
+    }
+    function applyManualMode(mode) {
+      manualPriceEnabled = mode === "price" || mode === "all";
+      manualAmountEnabled = mode === "all";
+    }
     function updateManualPriceControls() {
-      if ($("manualPriceEnabledToggle")) $("manualPriceEnabledToggle").checked = manualPriceEnabled;
-      if ($("manualAmountEnabledToggle")) $("manualAmountEnabledToggle").checked = manualAmountEnabled;
+      if ($("manualModeSelect")) $("manualModeSelect").value = manualModeFromState();
       if ($("clearManualPricesBtn")) $("clearManualPricesBtn").disabled = !manualScopeHasOverrides();
     }
 
@@ -6724,16 +6734,10 @@ ${serverDescBody}`,
       }
     })();
     $("copyJsonBtn").addEventListener("click", copyJson);
-    $("manualPriceEnabledToggle").addEventListener("change", () => {
-      manualPriceEnabled = $("manualPriceEnabledToggle").checked;
+    $("manualModeSelect").addEventListener("change", () => {
+      applyManualMode($("manualModeSelect").value);
       renderAll();
     });
-    if ($("manualAmountEnabledToggle")) {
-      $("manualAmountEnabledToggle").addEventListener("change", () => {
-        manualAmountEnabled = $("manualAmountEnabledToggle").checked;
-        renderAll();
-      });
-    }
     $("clearManualPricesBtn").addEventListener("click", () => {
       clearManualPriceOverridesForCurrentScope();
       renderAll();
